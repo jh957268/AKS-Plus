@@ -250,6 +250,20 @@ byte DMXStage = 0;
 int DMXch = 0;
 byte DMXsc = 0;
 
+void SERCOM2_Handler()
+{
+  if(SERCOM2->USART.INTFLAG.bit.ERROR)
+  {
+      SERCOM2->USART.INTFLAG.bit.ERROR = 1;
+      if (SERCOM2->USART.STATUS.bit.FERR)    // Test for frame error
+      {
+		  if(1);
+        return;
+      }
+  }
+}
+
+
 void SERCOM1_Handler()
 {
   bool isRX = SERCOM1->USART.INTFLAG.bit.RXC;
@@ -638,14 +652,14 @@ void loadDataToDevices()
     buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
     spi_transfer(WRITE_REG(DMX_CONTROL_REG), buffer, NULL, 1);
     bitClear(hasToUpdateTimoSettings, 4);
-    delayMicroseconds(300);
+    delayMicroseconds(1000);
   }
   if(bitRead(hasToUpdateTimoSettings, 0))
   {
     buffer[0] = settingsAfterLoad.timo_Config;
     spi_transfer(WRITE_REG(CONFIG_REG), buffer, NULL, 1);
     bitClear(hasToUpdateTimoSettings, 0);
-    delayMicroseconds(300);
+    delayMicroseconds(1000);
   }
   /*
   if(bitRead(hasToUpdateTimoSettings, 1))
@@ -674,14 +688,14 @@ void loadDataToDevices()
   {
     spi_transfer(WRITE_REG(BLOCKED_CHANNELS), settingsAfterLoad.timo_Blocked_Channel, NULL, 11);
     bitClear(hasToUpdateTimoSettings, 6);
-    delayMicroseconds(300);
+    delayMicroseconds(1000);
   }
   if(bitRead(hasToUpdateTimoSettings, 5))
   {
     buffer[0] = settingsAfterLoad.timo_RF_Power;
     spi_transfer(WRITE_REG(RF_POWER_REG), buffer, NULL, 1);
     bitClear(hasToUpdateTimoSettings, 5);
-    delayMicroseconds(300);
+    delayMicroseconds(1000);
   }
   if(bitRead(hasToUpdateTimoSettings, 7))
   {
@@ -1065,13 +1079,13 @@ void BatteryManagment()
 
 bool spi_transfer(unsigned char cmd, unsigned char* src, unsigned char* dst, int length)
 {
-  spi_command(cmd);// send the command
-  for (int i=0; i<10000; i++)
+  spi_command(cmd);						// send the command
+  for (int i=0; i<10000; i++)		//
   {
-    __asm__("nop\n\t");// wait
-    if(!digitalRead(IRQ))// when the IRQ flips
+    if(!digitalRead(IRQ))				// when the IRQ flips
     {
-        spi_payload(src, dst, length);// send the payload
+		delayMicroseconds(10);			// wait   
+        spi_payload(src, dst, length);	// send the payload
         return true;
     }
   }
@@ -1083,7 +1097,7 @@ unsigned char spi_command(unsigned char cmd)
   while (Response & 0x80)
   {
     digitalWrite(CS, LOW);// drop the CS pin
-    delayMicroseconds(4);// wait       
+    delayMicroseconds(10);// wait       
     Response = SPI.transfer(cmd);// send the command
     digitalWrite (CS, HIGH);// rise the CS pin
     for (int i=0; i<10000; i++)
@@ -1104,7 +1118,7 @@ void spi_payload(unsigned char* src, unsigned char* dst, int length) {
   while (Response & 0x80)
   {
     digitalWrite (CS, LOW);// drop the CS pin
-    delayMicroseconds(4);// wait   
+    delayMicroseconds(10);// wait   
     Response = SPI.transfer(0x00); // send the command
     if (Response & 0x80)
     {// if busy
@@ -1146,6 +1160,7 @@ void timo_send_DMX()
   spi_transfer(WRITE_DMX, dmxBuffer[2], NULL, 128);
   delayMicroseconds(500);      
   spi_transfer(WRITE_DMX, dmxBuffer[3], NULL, 128);
+  delayMicroseconds(500); 
 }
 
 void checkAndParseUDP()
@@ -1159,9 +1174,9 @@ void checkAndParseUDP()
                switch (bytes_to_short(ArtnetBuffer[2], ArtnetBuffer[1]))
                {// switch operations
                     case 0x5000: //ArtNetDMX
-                         if(gettingDMX)break;
                          byte ArtDmxBuffer[6];
                          Serial1.readBytes(ArtDmxBuffer, 6);
+						 if(gettingDMX)break;
                          //digitalWrite(11, HIGH);// Turns on DMX led
                          for (int i=0; i<10000; i++)
                          {//Wait for full frame
@@ -1198,72 +1213,39 @@ void checkAndParseUDP()
                     case 0x3200: 
                          for (int i=0; i<5000; i++)
                          {
-                              if(Serial1.available() >= 1)break;
+                              if(Serial1.available() >= 2)break;
                               delayMicroseconds(10);// wait  
                          }
-                         switch (Serial1.read())
+						 byte wifiBuffer[35];
+						 Serial1.readBytes(wifiBuffer, 1);
+                         switch (wifiBuffer[0])
                          {
                           case 0:
                              for (int i=0; i<5000; i++)
                              {
-                                  if(Serial1.available() >= 36)break;
+                                  if(Serial1.available() >= 35)break;
                                   delayMicroseconds(10);// wait
                              }
-                             unsigned char buffer1;
-                             buffer1 = Serial1.read();
-                             if(settingsAfterLoad.timo_Config != buffer1)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 0);
-                                settingsAfterLoad.timo_Config = buffer1;
-                             }
-
-                             buffer1 = Serial1.read();
-                             if(settingsAfterLoad.timo_IRQ_Mask != buffer1)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 1);
-                                settingsAfterLoad.timo_IRQ_Mask = buffer1;
-                             }
-                             unsigned char buffer4[4];
-                             Serial1.readBytes(buffer4, 4); 
-                             if(settingsAfterLoad.timo_DMX_Window != buffer4)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 2);
-                                memcpy(settingsAfterLoad.timo_DMX_Window, buffer4, 4);
-                             }
-
-                             unsigned char buffer8[8];
-                             Serial1.readBytes(buffer8, 8); 
-                             if(settingsAfterLoad.timo_DMX_Spec != buffer8)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 3);
-                                memcpy(settingsAfterLoad.timo_DMX_Spec, buffer8, 8);
-                             }
-
-                             buffer1 = Serial1.read();
-                             if(settingsAfterLoad.timo_DMX_Control != buffer1)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 4);
-                                settingsAfterLoad.timo_DMX_Control = buffer1;
-                             }
-                             buffer1 = Serial1.read();
-                             if(settingsAfterLoad.timo_RF_Power != buffer1)
+							 /*
+								1-Config
+								1-IRQ Mask
+								4-DMX Window
+								8-DMX Spec
+								1-DMX Control
+								1-RF Power
+								11-Blocked_Channel
+								8-Battery
+								*/
+							 Serial1.readBytes(wifiBuffer, 35);
+                             if(settingsAfterLoad.timo_RF_Power != wifiBuffer[15])
                              {
                                 bitSet(hasToUpdateTimoSettings, 5);
-                                settingsAfterLoad.timo_RF_Power = buffer1;
+                                settingsAfterLoad.timo_RF_Power = wifiBuffer[15];
                              }
-                             unsigned char buffer11[11];
-                             Serial1.readBytes(buffer11, 11); 
-                             if(settingsAfterLoad.timo_Blocked_Channel != buffer11)
+                             if(memcmp(wifiBuffer + 16, settingsAfterLoad.timo_Blocked_Channel, sizeof(settingsAfterLoad.timo_Blocked_Channel)) != 0)
                              {
                                 bitSet(hasToUpdateTimoSettings, 6);
-                                memcpy(settingsAfterLoad.timo_Blocked_Channel, buffer11, 11);
-                             }
-
-                             Serial1.readBytes(buffer8, 8); 
-                             if(settingsAfterLoad.Battery != buffer8)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 7);
-                                memcpy(settingsAfterLoad.Battery, buffer8, 8);
+                                memcpy(settingsAfterLoad.timo_Blocked_Channel, wifiBuffer + 16, 11);
                              }
                            break;
                            case 1: //artpoll Data in
@@ -1299,6 +1281,7 @@ void checkAndParseUDP()
                            break;
                          }
                          isWifiAlive = true;
+					break;
                     default: 
                          SerialUSB.print("Unknown ArtNet OpCode: ");
                          SerialUSB.print(bytes_to_short(ArtnetBuffer[2], ArtnetBuffer[1]));

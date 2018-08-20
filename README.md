@@ -11,7 +11,7 @@ Atmel Studio 7 (Other versions may work, but is untested)
 
 Clone the git repository.
 ```
-https://github.com/RatPacDimmers/AKS_Plus.git
+https://github.com/RatPacDimmers/AKS-Plus.git
 ```
 
 ## Built With
