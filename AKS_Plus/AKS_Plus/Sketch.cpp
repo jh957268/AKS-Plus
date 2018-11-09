@@ -44,6 +44,8 @@ void isdmxTX(bool TX);
 void DMXactivity();
 void sendArtpollReply();
 void cycleWifi();
+void writeWANN(byte WANN);
+void writeEcho();
 void writeConfig();
 void writeSSID();
 void writePassword();
@@ -171,18 +173,19 @@ byte hasToUpdateTimoSettings = 255;
 
 typedef struct
 {
-  bool isValid;
-  //Timo
-  unsigned char timo_Config;
-  unsigned char timo_IRQ_Mask;
-  unsigned char timo_DMX_Window[4];
-  unsigned char timo_DMX_Spec[8];
-  unsigned char timo_DMX_Control;
-  unsigned char timo_RF_Power;
-  unsigned char timo_Blocked_Channel[11];
+	bool isValid;
+	//Timo
+	unsigned char timo_Config;
+	unsigned char timo_IRQ_Mask;
+	unsigned char timo_DMX_Window[4];
+	unsigned char timo_DMX_Spec[8];
+	unsigned char timo_DMX_Control;
+	unsigned char timo_RF_Power;
+	unsigned char timo_Blocked_Channel[11];
 
-  //Battery 0b00110000
-  unsigned char Battery[8];
+	//Battery 0b00110000
+	unsigned char Battery[8];
+	byte wifi_Mode;
 
 } Settings;
 
@@ -355,6 +358,9 @@ void setup()
 
     unsigned char Battery[8] = {0b00110100, 0b00011011, 0b01100000, 0b00010001, 0b10110010, 0b10011010, 0b00000011, 0b01001011};
     memcpy( settingsBeforeLoad.Battery, Battery, 8);
+	settingsBeforeLoad.wifi_Mode = 1;
+	
+	
     settingsInEEPROM.write(settingsBeforeLoad);
     loadDataFromEEPROM();
   }
@@ -412,6 +418,7 @@ buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
   }
   batOperatingLED();
   loadDataToDevices();
+  //wifimode = settingsAfterLoad.wifi_Mode;
   if (bootToUpdate)
   { // boot into update mode
     resetBattery();
@@ -564,29 +571,35 @@ void FadeChannels()
 int sendCommand(char CMD[])
 {
   elapsedMillis timeElapsed = 0;
-  bool gotReply = false;
+  byte gotReply = 0;
   Serial1.print("AT+");//send command
   Serial1.print(CMD);
-  Serial1.print("\n");
+  Serial1.print("\r\n\r\n");
   Serial1.flush();
+  /*
   while(timeElapsed < 1000 && gotReply == false)
   {
     if(Serial1.find(CMD))gotReply = true;
   }
-  digitalWrite(11, LOW);
-  delay(100);
-  digitalWrite(11, HIGH);
+  */
+  /*
   if(gotReply == false)
   {
      return 0;
   }
+  */
   timeElapsed = 0;
-  while(timeElapsed < 1000)
+  while(timeElapsed < 2000 && gotReply == 0)
   {
-    if(Serial1.find("+ok"))return 1;
-    if(Serial1.find("+ERR="))return 2;
+    if(Serial1.find("ok"))
+		gotReply = 1;
+    if(Serial1.find("ER"))
+		gotReply = 2;
   }
-  //return 3;
+	digitalWrite(11, LOW);
+	delay(100);
+	digitalWrite(11, HIGH);
+  return gotReply;
 }
 int configurationMode()
 {//Put HF-A11 into configuration mode 
@@ -594,19 +607,20 @@ int configurationMode()
   bool gotReply = false;
   Serial1.print("+++");
   Serial1.flush();
-  while(timeElapsed < 1000 && gotReply == false)
+  while(timeElapsed < 2000 && gotReply == false)
   {
     if(Serial1.find("a"))gotReply = true;
   }
   if(!gotReply)return 0;
   gotReply = false;
-  delay(100);
+  delay(10);
   Serial1.print("a");
   Serial1.flush();
-  while(timeElapsed < 1000 && gotReply == false)
+  while(timeElapsed < 2000 && gotReply == false)
   {
     if(Serial1.find("+ok"))gotReply = true;
   }
+  delay(10);
   if(!gotReply)return 1;  
   return 2;
 }
@@ -693,6 +707,7 @@ void loadDataToDevices()
   if(bitRead(hasToUpdateTimoSettings, 5))
   {
     buffer[0] = settingsAfterLoad.timo_RF_Power;
+	if(buffer[0] < 3) buffer[0] = 3; // Limit AKS Lite to 65mW
     spi_transfer(WRITE_REG(RF_POWER_REG), buffer, NULL, 1);
     bitClear(hasToUpdateTimoSettings, 5);
     delayMicroseconds(1000);
@@ -733,10 +748,10 @@ void CheckPower()
     {
       Shutdown();
     }
-//    if(powerTimePressed >= 100 && powerTimePressed <= 500)
-//    {
-//      powerClickCount++;
-//    }
+    if(powerTimePressed >= 100 && powerTimePressed <= 500)
+    {
+      powerClickCount++;
+    }
     powerTimePressed = 0;
   }
   if (powerCurrent == LOW && powerTimePressed >= 2000 && hasBooted)
@@ -748,14 +763,14 @@ void CheckPower()
       powerBlinkTimer = 0;
     }
   }
-//  if(powerTimePressed >= 500)
-//  {
-//    if(powerClickCount == 3)
-//    {
-//      cycleWifi();
-//    }
-//    powerClickCount = 0;
-//  }
+  if(powerTimePressed >= 500)
+  {
+    if(powerClickCount == 3)
+    {
+      cycleWifi();
+    }
+    powerClickCount = 0;
+  }
 }
 void resetBattery()
 {
@@ -908,7 +923,7 @@ void batOperatingLED()
 }
 void setWIFILED()
 {
-  //wifimode = wifiCycle + 1;
+  //wifimode = wifiCycle;
   if(WIFIledstatus == 0)
   {
     wifiLedBlinkMode = 0;
@@ -1266,7 +1281,7 @@ void checkAndParseUDP()
                                   if(Serial1.available() >= 2)break;
                                   delayMicroseconds(10);// wait
                              }
-                             wifimode = Serial1.read();
+                             /*wifimode =*/ Serial1.read();
                              byte link = Serial1.read();
                              unsigned char buffer[1]; 
                              if(link == 1)
@@ -1280,6 +1295,7 @@ void checkAndParseUDP()
                              }
                            break;
                          }
+						 if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
                          isWifiAlive = true;
 					break;
                     default: 
@@ -1421,53 +1437,66 @@ void cycleWifi()
   wifiCycle++;
   if(wifiCycle == 3) wifiCycle = 0;
   configurationMode();
+  byte WANN = 1;
   switch (wifiCycle)
   {
-    case 1:
+    case 1:	//STA MODE
         isWifiOn = true;
         isSTA = true;
       break;
-    case 2:
+    case 2://ETH MODE
+		WANN = 0;
         isWifiOn = false;  
         isSTA = false;   
-      break;
-    default:
+    break;
+    default://AP MODE
         isWifiOn = true;
         isSTA = false;
+	break;
   }
+  wifimode = wifiCycle + 1;
+  settingsAfterLoad.wifi_Mode = wifimode;
+  writeEcho();
   writeMode();
+  writeLANN();
+  writeWANN(WANN);
   writeWIFI();
   writeReset();
 }
 
 void writeConfig()
 {
-
-  writePassword();
-  writeNodeName();
-  //writeWNodeName();
-  writeUniverse();
-  writeTimoPower();
-  writeChannelWidth();
-  writeSecondChannel();
-  writeLANN();
-  //writeBitSettings();
-  //writeReset();
-  //return;
-  writeMode();
-  writeLang();
-  writeFAPSTA();
-  writeSSID();
-  connectToSSID();
-  writeSecurity();
-  writeSTASecurity();
-  writeEthernet();
-  writeUDPinfo();
-  writeDHCP();
-  writeWIFI();
-  writeReset();
+	writeEcho();
+	writePassword();
+	writeNodeName();
+	//writeWNodeName();
+	writeUniverse();
+	writeTimoPower();
+	writeChannelWidth();
+	writeSecondChannel();
+	writeLANN();
+	writeWANN(1);
+	//writeBitSettings();
+	//writeReset();
+	//return;
+	writeMode();
+	writeLang();
+	writeFAPSTA();
+	writeSSID();
+	connectToSSID();
+	writeSecurity();
+	writeSTASecurity();
+	writeEthernet();
+	writeUDPinfo();
+	writeDHCP();
+	writeWIFI();
+	writeReset();
 }
-
+void writeEcho()
+{
+	char CMD[] = "E";
+	sendCommand(CMD);
+}
 void writeSSID()
 {
   char CMD[] = "WAP=11BGN,Ratpac AKS,CH1";
@@ -1524,8 +1553,27 @@ void writeSTASecurity()
 }
 void writeLANN()
 {
-  char CMD[] = "LANN=10.10.100.254,255.255.255.0";
-  sendCommand(CMD);
+	if(isSTA)
+	{
+		char CMD[] = "LANN=10.10.100.254,255.0.0.0";
+		sendCommand(CMD);
+	}else
+	{
+		char CMD[] = "LANN=10.10.100.254,255.255.255.0";
+		sendCommand(CMD);
+	}
+}
+void writeWANN(byte WANN)
+{
+	if(WANN)
+	{
+		char CMD[] = "FVER=n";
+		sendCommand(CMD);
+	}else
+	{
+		char CMD[] = "FVER=z";
+		sendCommand(CMD);
+	}
 }
 void writeMode()
 {
