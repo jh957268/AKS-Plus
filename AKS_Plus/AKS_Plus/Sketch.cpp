@@ -58,10 +58,10 @@ void writeUDPinfo();
 void writeDHCP();
 void connectToSSID();
 void writeSTASecurity();
-void writeLANN();
-void writeMode();
-void writeFAPSTA();
-void writeWIFI();
+void writeLANN(byte i);
+void writeMode(byte STA);
+void writeFAPSTA(byte APSTA);
+void writeWIFI(byte on);
 void writeLang();
 void writeNodeName();
 void writeUniverse();
@@ -418,6 +418,7 @@ buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
   }
   batOperatingLED();
   loadDataToDevices();
+  Serial1.setTimeout(75);
   //wifimode = settingsAfterLoad.wifi_Mode;
   if (bootToUpdate)
   { // boot into update mode
@@ -570,36 +571,38 @@ void FadeChannels()
 }
 int sendCommand(char CMD[])
 {
-  elapsedMillis timeElapsed = 0;
-  byte gotReply = 0;
-  Serial1.print("AT+");//send command
-  Serial1.print(CMD);
-  Serial1.print("\r\n\r\n");
-  Serial1.flush();
-  /*
-  while(timeElapsed < 1000 && gotReply == false)
-  {
-    if(Serial1.find(CMD))gotReply = true;
-  }
-  */
-  /*
-  if(gotReply == false)
-  {
-     return 0;
-  }
-  */
-  timeElapsed = 0;
-  while(timeElapsed < 2000 && gotReply == 0)
-  {
-    if(Serial1.find("ok"))
-		gotReply = 1;
-    if(Serial1.find("ER"))
-		gotReply = 2;
-  }
-	digitalWrite(11, LOW);
-	delay(100);
-	digitalWrite(11, HIGH);
-  return gotReply;
+	while (Serial1.available() > 0) Serial1.read();
+	Serial1.print("AT+");//send command
+	Serial1.print(CMD);
+	Serial1.print("\r\n");
+	Serial1.flush();
+	elapsedMillis timeElapsed = 0;
+	byte gotReply = 0;
+	while(timeElapsed < 15000)
+	{
+		digitalWrite(wifiLEDPin, LOW);
+		delay(25);
+		digitalWrite(wifiLEDPin, HIGH);
+		delay(25);
+		if(Serial1.available() > 4)
+		{
+			if(Serial1.find("ok"))
+			{
+				gotReply = 1;
+				break;
+			}
+			if(Serial1.find("ER"))
+			{
+				gotReply = 2;
+				break;
+			}
+		}
+	}
+	digitalWrite(wifiLEDPin, LOW);
+	delay(1);
+	digitalWrite(wifiLEDPin, HIGH);
+	delay(1);
+	return gotReply;
 }
 int configurationMode()
 {//Put HF-A11 into configuration mode 
@@ -1457,10 +1460,10 @@ void cycleWifi()
   wifimode = wifiCycle + 1;
   settingsAfterLoad.wifi_Mode = wifimode;
   writeEcho();
-  writeMode();
-  writeLANN();
+  writeMode(isSTA);
+  writeLANN(isSTA);
   writeWANN(WANN);
-  writeWIFI();
+  writeWIFI(isWifiOn);
   writeReset();
 }
 
@@ -1474,14 +1477,14 @@ void writeConfig()
 	writeTimoPower();
 	writeChannelWidth();
 	writeSecondChannel();
-	writeLANN();
+	writeLANN(isSTA);
 	writeWANN(1);
 	//writeBitSettings();
 	//writeReset();
 	//return;
-	writeMode();
+	writeMode(1);
 	writeLang();
-	writeFAPSTA();
+	writeFAPSTA(0);
 	writeSSID();
 	connectToSSID();
 	writeSecurity();
@@ -1489,7 +1492,7 @@ void writeConfig()
 	writeEthernet();
 	writeUDPinfo();
 	writeDHCP();
-	writeWIFI();
+	writeWIFI(1);
 	writeReset();
 }
 void writeEcho()
@@ -1551,9 +1554,9 @@ void writeSTASecurity()
   char CMD[] = "WSKEY=WPA2PSK,AES,quietonset";
   sendCommand(CMD);
 }
-void writeLANN()
+void writeLANN(byte i)
 {
-	if(isSTA)
+	if(i)
 	{
 		char CMD[] = "LANN=10.10.100.254,255.0.0.0";
 		sendCommand(CMD);
@@ -1575,9 +1578,9 @@ void writeWANN(byte WANN)
 		sendCommand(CMD);
 	}
 }
-void writeMode()
+void writeMode(byte STA)
 {
-  if(isSTA)
+  if(STA)
   {
     char CMD[] = "WMODE=STA";
     sendCommand(CMD);
@@ -1588,9 +1591,9 @@ void writeMode()
   }
 }
 
-void writeFAPSTA()
+void writeFAPSTA(byte APSTA)
 {
-  if(isAPSTA)
+  if(APSTA)
   {
     char CMD[] = "FAPSTA=ON";
     sendCommand(CMD);
@@ -1601,9 +1604,9 @@ void writeFAPSTA()
   }
 }
 
-void writeWIFI()
+void writeWIFI(byte on)
 {
-  if(isWifiOn)
+  if(on)
   {
     char CMD[] = "MSLP=ON";
     sendCommand(CMD);
