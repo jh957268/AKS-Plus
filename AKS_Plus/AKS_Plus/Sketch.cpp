@@ -1437,6 +1437,15 @@ void sendArtpollReply()
 
 void cycleWifi()
 {
+	digitalWrite(powerLED, LOW);
+	delay(250);
+	digitalWrite(powerLED, HIGH);
+	delay(250);
+	digitalWrite(powerLED, LOW);
+	delay(250);
+	digitalWrite(powerLED, HIGH);
+	
+	
   wifiCycle++;
   if(wifiCycle == 3) wifiCycle = 0;
   configurationMode();
