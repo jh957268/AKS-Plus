@@ -1393,16 +1393,16 @@ void sendArtpollReply()
   Serial1.write((uint8_t)0);//Port
   Serial1.write((uint8_t)0);
 
-  Serial1.write((uint8_t)0);//Port Type
+  Serial1.write((uint8_t)0b11000000);//Port Type
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
 
-  Serial1.write((uint8_t)0);// GoodInput + GoodOutput
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
+  Serial1.write((uint8_t)0b10000000);// GoodInput + GoodOutput
+  Serial1.write((uint8_t)0b00001000);
+  Serial1.write((uint8_t)0b00001000);
+  Serial1.write((uint8_t)0b00001000);
+  Serial1.write((uint8_t)0b10000000);
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
@@ -1432,6 +1432,14 @@ void sendArtpollReply()
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
+  
+   Serial1.write((uint8_t)0);
+   Serial1.write((uint8_t)0);
+   Serial1.write((uint8_t)0);
+   Serial1.write((uint8_t)0);
+   Serial1.write((uint8_t)0);
+   
+   Serial1.write((uint8_t)15);
   
 }
 
