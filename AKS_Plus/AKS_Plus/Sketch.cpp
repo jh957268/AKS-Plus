@@ -201,6 +201,7 @@ Settings settingsAfterLoad;
 elapsedMillis powerTimePressed, powerBlinkTimer;
 bool powerCurrent = LOW, powerPrevious = LOW;
 bool powerLED = true, hasBooted = false;
+#define PowerLEDPin 3
 byte powerClickCount = 0;
 
 /* Link Button
@@ -322,8 +323,8 @@ void setup()
   }
   pinMode(A0, OUTPUT);// Sets up the system latch
   digitalWrite(A0, HIGH);// Hold system on
-  pinMode (3, OUTPUT);// Sets up the Power LED
-  digitalWrite(3, HIGH);// Power LED
+  pinMode (PowerLEDPin, OUTPUT);// Sets up the Power LED
+  digitalWrite(PowerLEDPin, HIGH);// Power LED
   pinMode(A1, INPUT_PULLUP); //PullUp for power button detector
   pinMode(13, INPUT_PULLUP); //PullUp for link button detector
   if (!digitalRead(13))bootToUpdate = true;
@@ -580,10 +581,9 @@ int sendCommand(char CMD[])
 	byte gotReply = 0;
 	while(timeElapsed < 15000)
 	{
-		digitalWrite(wifiLEDPin, LOW);
-		delay(25);
+		digitalWrite(pi, LOW);
+		delay(100);
 		digitalWrite(wifiLEDPin, HIGH);
-		delay(25);
 		if(Serial1.available() > 4)
 		{
 			if(Serial1.find("ok"))
@@ -601,7 +601,6 @@ int sendCommand(char CMD[])
 	digitalWrite(wifiLEDPin, LOW);
 	delay(1);
 	digitalWrite(wifiLEDPin, HIGH);
-	delay(1);
 	return gotReply;
 }
 int configurationMode()
@@ -762,7 +761,7 @@ void CheckPower()
     if (powerBlinkTimer >= 100)
     {// blink LED
       powerLED = !powerLED;
-      digitalWrite(3, powerLED);
+      digitalWrite(PowerLEDPin, powerLED);
       powerBlinkTimer = 0;
     }
   }
@@ -1445,17 +1444,17 @@ void sendArtpollReply()
 
 void cycleWifi()
 {
-	digitalWrite(powerLED, LOW);
+	digitalWrite(PowerLEDPin, LOW);
 	delay(250);
-	digitalWrite(powerLED, HIGH);
+	digitalWrite(PowerLEDPin, HIGH);
 	delay(250);
-	digitalWrite(powerLED, LOW);
+	digitalWrite(PowerLEDPin, LOW);
 	delay(250);
-	digitalWrite(powerLED, HIGH);
+	digitalWrite(PowerLEDPin, HIGH);
 	
 	
   wifiCycle++;
-  if(wifiCycle == 3) wifiCycle = 0;
+  if(wifiCycle > 2) wifiCycle = 0;
   configurationMode();
   byte WANN = 1;
   switch (wifiCycle)
