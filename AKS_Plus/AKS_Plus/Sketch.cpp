@@ -1475,7 +1475,7 @@ void cycleWifi()
   }
   wifimode = wifiCycle + 1;
   settingsAfterLoad.wifi_Mode = wifimode;
-  writeEcho();
+  //writeEcho();
   writeMode(isSTA);
   writeLANN(isSTA);
   writeWANN(WANN);
