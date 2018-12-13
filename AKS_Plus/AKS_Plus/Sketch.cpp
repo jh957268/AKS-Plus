@@ -1454,6 +1454,8 @@ void sendArtpollReply()
    Serial1.write((uint8_t)0);
    Serial1.write((uint8_t)0);
    
+   Serial1.write((uint8_t)0);
+   
    Serial1.write((uint8_t)15);
    
    for (int i = 0; i < 26 ; i++)Serial1.write((uint8_t)0);//null
