@@ -1378,8 +1378,8 @@ void sendArtpollReply()
      Serial1.write((uint8_t)0); // Oem
      Serial1.write((uint8_t)0); // Ubea Version
      Serial1.write((uint8_t)0); // Status1
-     Serial1.write((uint8_t)0); // EstaManLo
-     Serial1.write((uint8_t)0); // EstaManHi
+     Serial1.write(0xD7); // EstaManLo
+     Serial1.write(0x51); // EstaManHi
      
      Serial1.write((uint8_t)0);
      Serial1.write((uint8_t)0);
