@@ -1361,71 +1361,85 @@ void sendArtpollReply()
 {
      uint8_t artnetID[] = {'A', 'r', 't', '-', 'N', 'e', 't', 0x00};
      // byte ArtPollBuffer[18];
-     Serial1.write(artnetID, sizeof(artnetID));
+     Serial1.write(artnetID, sizeof(artnetID)); // ID[8]
      Serial1.write((uint8_t)0x00);
      Serial1.write((uint8_t)0x21);
      
      
      Serial1.write((uint8_t)ArtnetIP[0]);//ip
-     Serial1.write((uint8_t)ArtnetIP[1]);
-     Serial1.write((uint8_t)ArtnetIP[2]);
-     Serial1.write((uint8_t)ArtnetIP[3]);
+     Serial1.write((uint8_t)ArtnetIP[1]);//ip
+     Serial1.write((uint8_t)ArtnetIP[2]);//ip
+     Serial1.write((uint8_t)ArtnetIP[3]);//ip
      
      Serial1.write((uint8_t)0x36);//port
      Serial1.write((uint8_t)0x19);
+	 
+	 Serial1.write((uint8_t)12);//vers
+	 Serial1.write((uint8_t)18);
      
+	 Serial1.write((uint8_t)0); // NetSwitch
+	 Serial1.write((uint8_t)0); // SubSwitch
+	 
+	 
      Serial1.write((uint8_t)0); // OemHi
-     Serial1.write((uint8_t)0); // Oem
+     Serial1.write((uint8_t)0); // OemLo
+	 
      Serial1.write((uint8_t)0); // Ubea Version
      Serial1.write((uint8_t)0); // Status1
+	 
      Serial1.write(0xD7); // EstaManLo
      Serial1.write(0x51); // EstaManHi
      
-     Serial1.write((uint8_t)0);
-     Serial1.write((uint8_t)0);
-     Serial1.write((uint8_t)0);
-     Serial1.write((uint8_t)0);
-     
      Serial1.write(ArtNetName, 18);//short name       
      //Serial1.write("AKS                                                             ");
-     Serial1.write("Ratpac AKS - Designed by Ratpac Dimmers                        ");
+     Serial1.write("Ratpac AKS - Designed by Ratpac Dimmers");
 	 
-	 Serial1.write((uint8_t)0);//null
 	 
-  Serial1.write((uint8_t)0);//Port
-  Serial1.write((uint8_t)0);
-
-  Serial1.write((uint8_t)0b11000000);//Port Type
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
-
-  Serial1.write((uint8_t)0b10000000);// GoodInput + GoodOutput
-  Serial1.write((uint8_t)0b00001000);
-  Serial1.write((uint8_t)0b00001000);
-  Serial1.write((uint8_t)0b00001000);
-  Serial1.write((uint8_t)0b10000000);
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
-  Serial1.write((uint8_t)0);
-
-  Serial1.write((uint8_t)0);//portAddrIn
+	 
+	 
+	 
+	 
+	 for (int i = 0; i < 25 ; i++)Serial1.write((uint8_t)0);//null
+	 for (int i = 0; i < 64 ; i++)Serial1.write((uint8_t)0);//NodeReport
+	 
+  Serial1.write((uint8_t)0);//Numports
   Serial1.write((uint8_t)1);
-  Serial1.write((uint8_t)2);
-  Serial1.write((uint8_t)3);
 
-  Serial1.write((uint8_t)0);//portAddrOut
-  Serial1.write((uint8_t)1);
-  Serial1.write((uint8_t)2);
-  Serial1.write((uint8_t)3);
+  Serial1.write((uint8_t)0b10000000);//PortTypes
+  Serial1.write((uint8_t)0);
+  Serial1.write((uint8_t)0);
+  Serial1.write((uint8_t)0);
 
+  Serial1.write((uint8_t)0b10000000);//GoodInput
+  Serial1.write((uint8_t)0b00001000);
+  Serial1.write((uint8_t)0b00001000);
+  Serial1.write((uint8_t)0b00001000);
+  
+  Serial1.write((uint8_t)0b10000000);//GoodOutput
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
+  
+  Serial1.write((uint8_t)0);//SwIn
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
   Serial1.write((uint8_t)0);
+  
+  Serial1.write((uint8_t)0);//SwOut
   Serial1.write((uint8_t)0);
+  Serial1.write((uint8_t)0);
+  Serial1.write((uint8_t)0);
+  
+  Serial1.write((uint8_t)0);//SwVideo
+  Serial1.write((uint8_t)0);//SwMacro
+  
+  Serial1.write((uint8_t)0);//SwRemote
+  
+  Serial1.write((uint8_t)0);//Zeros
+  Serial1.write((uint8_t)0);//Zeros
+  Serial1.write((uint8_t)0);//Zeros
+  
+  Serial1.write((uint8_t)0);//Style
 
 
   Serial1.write((uint8_t)0);//mac
@@ -1439,9 +1453,10 @@ void sendArtpollReply()
    Serial1.write((uint8_t)0);
    Serial1.write((uint8_t)0);
    Serial1.write((uint8_t)0);
-   Serial1.write((uint8_t)0);
    
    Serial1.write((uint8_t)15);
+   
+   for (int i = 0; i < 26 ; i++)Serial1.write((uint8_t)0);//null
   
 }
 
