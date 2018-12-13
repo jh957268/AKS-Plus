@@ -581,9 +581,9 @@ int sendCommand(char CMD[])
 	byte gotReply = 0;
 	while(timeElapsed < 15000)
 	{
-		digitalWrite(pi, LOW);
+		digitalWrite(PowerLEDPin, LOW);
 		delay(100);
-		digitalWrite(wifiLEDPin, HIGH);
+		digitalWrite(PowerLEDPin, HIGH);
 		if(Serial1.available() > 4)
 		{
 			if(Serial1.find("ok"))
@@ -598,9 +598,9 @@ int sendCommand(char CMD[])
 			}
 		}
 	}
-	digitalWrite(wifiLEDPin, LOW);
-	delay(1);
-	digitalWrite(wifiLEDPin, HIGH);
+	digitalWrite(PowerLEDPin, LOW);
+	delay(100);
+	digitalWrite(PowerLEDPin, HIGH);
 	return gotReply;
 }
 int configurationMode()
