@@ -1480,7 +1480,14 @@ void cycleWifi()
   writeLANN(isSTA);
   writeWANN(WANN);
   writeWIFI(isWifiOn);
-  writeReset();
+  if(!isWifiOn)
+  {
+	  char CMD[] = "ENTM";
+	  sendCommand(CMD);
+  }else
+  {
+	writeReset();  
+  }
 }
 
 void writeConfig()
