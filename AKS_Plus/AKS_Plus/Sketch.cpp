@@ -1388,7 +1388,10 @@ void sendArtpollReply()
      
      Serial1.write(ArtNetName, 18);//short name       
      //Serial1.write("AKS                                                             ");
-     Serial1.write("Ratpac AKS - Designed by Ratpac Dimmers                         ");
+     Serial1.write("Ratpac AKS - Designed by Ratpac Dimmers                        ");
+	 
+	 Serial1.write((uint8_t)0);//null
+	 
   Serial1.write((uint8_t)0);//Port
   Serial1.write((uint8_t)0);
 
