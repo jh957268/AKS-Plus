@@ -43,10 +43,13 @@ void setTimoChannels(byte channel);
 void isdmxTX(bool TX);
 void DMXactivity();
 void sendArtpollReply();
-void cycleWifi();
+void cycleWifi(byte mode);
 void writeWANN(byte WANN);
 void writeFVER(byte FVER);
 void writeEcho();
+void writeFSSSID();
+void writeFSKEY();
+void writeFSENC();
 void writeConfig();
 void writeSSID();
 void writePassword();
@@ -768,10 +771,18 @@ void CheckPower()
   }
   if(powerTimePressed >= 500)
   {
-    if(powerClickCount == 3)
+    if(powerClickCount == 2)
     {
-      cycleWifi();
+		cycleWifi(1);
     }
+	if(powerClickCount == 3)
+	{
+		cycleWifi(0);
+	}
+	if(powerClickCount == 5)
+	{
+		cycleWifi(2);
+	}
     powerClickCount = 0;
   }
 }
@@ -1463,7 +1474,7 @@ void sendArtpollReply()
   
 }
 
-void cycleWifi()
+void cycleWifi(byte mode)
 {
 	digitalWrite(PowerLEDPin, LOW);
 	delay(250);
@@ -1473,12 +1484,9 @@ void cycleWifi()
 	delay(250);
 	digitalWrite(PowerLEDPin, HIGH);
 	
-	
-  wifiCycle++;
-  if(wifiCycle > 2) wifiCycle = 0;
   configurationMode();
   byte WANN = 1;
-  switch (wifiCycle)
+  switch (mode)
   {
     case 1:	//STA MODE
         isWifiOn = true;
@@ -1494,7 +1502,7 @@ void cycleWifi()
         isSTA = false;
 	break;
   }
-  wifimode = wifiCycle + 1;
+  wifimode = mode + 1;
   settingsAfterLoad.wifi_Mode = wifimode;
   //writeEcho();
   writeMode(isSTA);
@@ -1526,6 +1534,12 @@ void writeConfig()
 	writeSSID();
 	writeSecurity();
 	
+	writeFSSSID();
+	writeFSKEY();
+	writeFSENC();
+	
+	writeReset();
+	
 	return;
 	writePassword();
 	writeNodeName();
@@ -1556,6 +1570,21 @@ void writeConfig()
 void writeEcho()
 {
 	char CMD[] = "E";
+	sendCommand(CMD);
+}
+void writeFSSSID()
+{
+	char CMD[] = "FSSSID=Ratpac AKS";
+	sendCommand(CMD);
+}
+void writeFSKEY()
+{
+	char CMD[] = "FSKEY=quietonset";
+	sendCommand(CMD);
+}
+void writeFSENC()
+{
+	char CMD[] = "FSENC=WPA2PSK,AES";
 	sendCommand(CMD);
 }
 void writeSSID()
