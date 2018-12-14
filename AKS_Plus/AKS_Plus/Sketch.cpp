@@ -1616,7 +1616,7 @@ void writeLANN(byte i)
 {
 	if(i)
 	{
-		char CMD[] = "LANN=10.10.100.254,255.0.0.0";
+		char CMD[] = "LANN=10.10.99.254,255.0.0.0";
 		sendCommand(CMD);
 	}else
 	{
