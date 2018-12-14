@@ -45,6 +45,7 @@ void DMXactivity();
 void sendArtpollReply();
 void cycleWifi();
 void writeWANN(byte WANN);
+void writeFVER(byte FVER);
 void writeEcho();
 void writeConfig();
 void writeSSID();
@@ -1381,8 +1382,8 @@ void sendArtpollReply()
 	 Serial1.write((uint8_t)0); // SubSwitch
 	 
 	 
-     Serial1.write((uint8_t)0); // OemHi
-     Serial1.write((uint8_t)0); // OemLo
+     Serial1.write((uint8_t)0x00); // OemHi
+     Serial1.write((uint8_t)0xFF); // OemLo
 	 
      Serial1.write((uint8_t)0); // Ubea Version
      Serial1.write((uint8_t)0); // Status1
@@ -1498,7 +1499,7 @@ void cycleWifi()
   //writeEcho();
   writeMode(isSTA);
   writeLANN(isSTA);
-  writeWANN(WANN);
+  writeFVER(WANN);
   writeWIFI(isWifiOn);
   if(!isWifiOn)
   {
@@ -1513,6 +1514,19 @@ void cycleWifi()
 void writeConfig()
 {
 	writeEcho();
+	writeUDPinfo();//NETP
+	writeMode(true);//WMODE
+	writeWANN(1);
+	writeLANN(1);
+	connectToSSID();
+	writeSTASecurity();
+	
+	writeMode(false);//WMODE
+	writeLANN(0);
+	writeSSID();
+	writeSecurity();
+	
+	return;
 	writePassword();
 	writeNodeName();
 	//writeWNodeName();
@@ -1522,6 +1536,7 @@ void writeConfig()
 	writeSecondChannel();
 	writeLANN(isSTA);
 	writeWANN(1);
+	writeFVER(1);
 	//writeBitSettings();
 	//writeReset();
 	//return;
@@ -1611,7 +1626,12 @@ void writeLANN(byte i)
 }
 void writeWANN(byte WANN)
 {
-	if(WANN)
+	char CMD[] = "WANN=DHCP,10.10.100.100,255.255.255.0,10.10.100.254";
+	sendCommand(CMD);
+}
+void writeFVER(byte FVER)
+{
+	if(FVER)
 	{
 		char CMD[] = "FVER=n";
 		sendCommand(CMD);
