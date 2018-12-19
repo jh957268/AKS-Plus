@@ -46,6 +46,7 @@ void sendArtpollReply();
 void cycleWifi(byte mode);
 void writeWANN(byte WANN);
 void writeFVER(byte FVER);
+void writeFVEW(byte FVEW);
 void writeEcho();
 void writeFSSSID();
 void writeFSKEY();
@@ -60,6 +61,7 @@ void writeTCP();
 void writeTcpPort();
 void writeUDPinfo();
 void writeDHCP();
+void writeRELD();
 void connectToSSID();
 void writeSTASecurity();
 void writeLANN(byte i);
@@ -423,7 +425,7 @@ buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
   }
   batOperatingLED();
   loadDataToDevices();
-  Serial1.setTimeout(75);
+  Serial1.setTimeout(100);
   //wifimode = settingsAfterLoad.wifi_Mode;
   if (bootToUpdate)
   { // boot into update mode
@@ -431,11 +433,11 @@ buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
     settingsBeforeLoad.isValid = false;
     settingsInEEPROM.write(settingsBeforeLoad); 
     digitalWrite(11, HIGH);
-    delay(5000);
+    delay(10000);
         configurationMode();
         writeConfig();
         //loadDataToDevices();
-        digitalWrite(A3, HIGH);
+        //digitalWrite(A3, HIGH);
     while (true)
     {
           if (blinkTimeout > 250 && wifiTimeout > 10000)
@@ -447,8 +449,8 @@ buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
           CheckPower();// check power
           CheckLink();
           BatteryManagment();
-          DMXactivity();
-          CheckDMX();
+          //DMXactivity();
+          //CheckDMX();
           //Serial2.write('0');
     }
   }
@@ -583,11 +585,12 @@ int sendCommand(char CMD[])
 	Serial1.flush();
 	elapsedMillis timeElapsed = 0;
 	byte gotReply = 0;
-	while(timeElapsed < 15000)
+	while(timeElapsed < 30000)
 	{
 		digitalWrite(PowerLEDPin, LOW);
-		delay(100);
+		delay(25);
 		digitalWrite(PowerLEDPin, HIGH);
+		delay(25);
 		if(Serial1.available() > 4)
 		{
 			if(Serial1.find("ok"))
@@ -609,6 +612,7 @@ int sendCommand(char CMD[])
 }
 int configurationMode()
 {//Put HF-A11 into configuration mode 
+	while (Serial1.available() > 0) Serial1.read();
   elapsedMillis timeElapsed = 0;
   bool gotReply = false;
   Serial1.print("+++");
@@ -1495,7 +1499,7 @@ void cycleWifi(byte mode)
     case 2://ETH MODE
 		WANN = 0;
         isWifiOn = false;  
-        isSTA = false;   
+        isSTA = true;   
     break;
     default://AP MODE
         isWifiOn = true;
@@ -1504,23 +1508,95 @@ void cycleWifi(byte mode)
   }
   wifimode = mode + 1;
   settingsAfterLoad.wifi_Mode = wifimode;
-  //writeEcho();
+  writeEcho();
+  
+  switch (mode)
+  {
+	  case 1:	//STA MODE
+		  writeFVEW(false);
+	  break;
+	  case 2://ETH MODE
+		writeFVEW(true);
+	  break;
+	  default://AP MODE
+		writeFVEW(false);
+	  break;
+  }
+  writeRELD();
+  
+   for (int i = 0; i < 250 ; i++)
+   {
+	   digitalWrite(PowerLEDPin, LOW);
+	   delay(25);
+	   digitalWrite(PowerLEDPin, HIGH);
+	   delay(25);
+   }
+  configurationMode();
+  writeEcho();
+  
+  
   writeMode(isSTA);
+  
+   switch (mode)
+   {
+	   case 1:	//STA MODE
+		  writeSTASecurity();
+		  connectToSSID();
+	   break;
+	   case 2://ETH MODE
+	   break;
+	   default://AP MODE
+	   break;
+   }
+  
   writeLANN(isSTA);
+  writeWANN(1);
   writeFVER(WANN);
-  writeWIFI(isWifiOn);
+  
   if(!isWifiOn)
   {
+	  writeReset(); 
+	  
+	  for (int i = 0; i < 250 ; i++)
+	  {
+		  digitalWrite(PowerLEDPin, LOW);
+		  delay(25);
+		  digitalWrite(PowerLEDPin, HIGH);
+		  delay(25);
+	  }
+	  configurationMode();
+	  writeEcho();
+	  
+	  writeWIFI(isWifiOn);
+	  
 	  char CMD[] = "ENTM";
 	  sendCommand(CMD);
   }else
   {
+	writeWIFI(isWifiOn);
 	writeReset();  
   }
+  digitalWrite(PowerLEDPin, LOW);
+  delay(250);
+  digitalWrite(PowerLEDPin, HIGH);
+  delay(250);
+  digitalWrite(PowerLEDPin, LOW);
+  delay(250);
+  digitalWrite(PowerLEDPin, HIGH);
 }
 
 void writeConfig()
 {
+	digitalWrite(PowerLEDPin, LOW);
+	  delay(250);
+	  digitalWrite(PowerLEDPin, HIGH);
+	  delay(250);
+	  digitalWrite(PowerLEDPin, LOW);
+	  delay(250);
+	  digitalWrite(PowerLEDPin, HIGH);
+	  
+	  //return;
+	  
 	writeEcho();
 	writeUDPinfo();//NETP
 	writeMode(true);//WMODE
@@ -1631,6 +1707,11 @@ void writeDHCP()
   char CMD[] = "DHCPDEN=on";
   sendCommand(CMD);
 }
+void writeRELD()
+{
+	char CMD[] = "RELD";
+	sendCommand(CMD);
+}
 void connectToSSID()
 {
   char CMD[] = "WSSSID=Ratpac AKS";
@@ -1670,6 +1751,21 @@ void writeFVER(byte FVER)
 		sendCommand(CMD);
 	}
 }
+
+void writeFVEW(byte FVEW)
+{
+	if(FVEW)
+	{
+		char CMD[] = "FVEW=enable";
+		sendCommand(CMD);
+	}else
+	{
+		char CMD[] = "FVEW=enable";
+		sendCommand(CMD);
+	}
+}
+
+
 void writeMode(byte STA)
 {
   if(STA)
