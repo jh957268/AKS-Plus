@@ -19,7 +19,8 @@ String printFormater(const char* str, ... );
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max);
 bool Checksum(unsigned char* val1, unsigned char* val2, int length);
 void FadeChannels();
-int sendCommand(char* CMD);
+byte sendCommand(char* CMD, byte attempts, byte timeout);
+//byte sendCommand(char* CMD);
 int configurationMode();
 void loadDataFromEEPROM();
 bool hasSettingsChanged();
@@ -48,6 +49,7 @@ void writeWANN(byte WANN);
 void writeFVER(byte FVER);
 void writeFVEW(byte FVEW);
 void writeEcho();
+void writeArtNet(bool enabled);
 void writeFSSSID();
 void writeFSKEY();
 void writeFSENC();
@@ -64,7 +66,7 @@ void writeDHCP();
 void writeRELD();
 void connectToSSID();
 void writeSTASecurity();
-void writeLANN(byte i);
+void writeLANN(byte eth);
 void writeMode(byte STA);
 void writeFAPSTA(byte APSTA);
 void writeWIFI(byte on);
@@ -576,38 +578,45 @@ void FadeChannels()
       }
     }
 }
-int sendCommand(char CMD[])
+
+byte sendCommand(char CMD[])
 {
+	byte attempts = 3;
+	byte timeout = 3;
+	byte gotReply = 0;//0 == Nothing
 	while (Serial1.available() > 0) Serial1.read();
-	Serial1.print("AT+");//send command
-	Serial1.print(CMD);
-	Serial1.print("\r\n");
-	Serial1.flush();
-	elapsedMillis timeElapsed = 0;
-	byte gotReply = 0;
-	while(timeElapsed < 30000)
+	for (u_int8_t i = 0; i < attempts; i++)
 	{
-		digitalWrite(PowerLEDPin, LOW);
-		delay(25);
-		digitalWrite(PowerLEDPin, HIGH);
-		delay(25);
-		if(Serial1.available() > 4)
+		if(gotReply == 2)break;
+		Serial1.print("AT+");//send command
+		Serial1.print(CMD);
+		Serial1.print("\r");
+		//if(CMD[0] != "Z")Serial1.print("\n\r\n");
+		Serial1.flush();
+		elapsedMillis timeElapsed = 0;
+		while(timeElapsed < (timeout * 1000))
 		{
-			if(Serial1.find("ok"))
+			digitalWrite(PowerLEDPin, LOW);
+			delay(25);
+			digitalWrite(PowerLEDPin, HIGH);
+			delay(25);
+			if(Serial1.find("+ok"))
 			{
-				gotReply = 1;
+				gotReply = 2;//2 == OK
 				break;
 			}
-			if(Serial1.find("ER"))
+			if(Serial1.find("+ERR"))
 			{
-				gotReply = 2;
+				gotReply = 1;//2 == ERROR
 				break;
 			}
 		}
+		gotReply = 3;//3 == no reply
 	}
 	digitalWrite(PowerLEDPin, LOW);
 	delay(100);
 	digitalWrite(PowerLEDPin, HIGH);
+	delay(100);
 	return gotReply;
 }
 int configurationMode()
@@ -617,7 +626,7 @@ int configurationMode()
   bool gotReply = false;
   Serial1.print("+++");
   Serial1.flush();
-  while(timeElapsed < 2000 && gotReply == false)
+  while(timeElapsed < 2500 && gotReply == false)
   {
     if(Serial1.find("a"))gotReply = true;
   }
@@ -626,11 +635,11 @@ int configurationMode()
   delay(10);
   Serial1.print("a");
   Serial1.flush();
-  while(timeElapsed < 2000 && gotReply == false)
+  while(timeElapsed < 2500 && gotReply == false)
   {
     if(Serial1.find("+ok"))gotReply = true;
   }
-  delay(10);
+  delay(25);
   if(!gotReply)return 1;  
   return 2;
 }
@@ -1480,6 +1489,7 @@ void sendArtpollReply()
 
 void cycleWifi(byte mode)
 {
+	//Blink LEDS
 	digitalWrite(PowerLEDPin, LOW);
 	delay(250);
 	digitalWrite(PowerLEDPin, HIGH);
@@ -1488,8 +1498,14 @@ void cycleWifi(byte mode)
 	delay(250);
 	digitalWrite(PowerLEDPin, HIGH);
 	
-  configurationMode();
+  configurationMode();//Enter config mode
+  writeEcho();	//Turn off Echo
+  writeArtNet(false);
+  
   byte WANN = 1;
+  wifimode = mode + 1; //Fix wifimode indexing
+  settingsAfterLoad.wifi_Mode = wifimode;//apply settings to new wifimode
+  
   switch (mode)
   {
     case 1:	//STA MODE
@@ -1499,83 +1515,92 @@ void cycleWifi(byte mode)
     case 2://ETH MODE
 		WANN = 0;
         isWifiOn = false;  
-        isSTA = true;   
+        isSTA = false;   
     break;
     default://AP MODE
         isWifiOn = true;
         isSTA = false;
 	break;
   }
-  wifimode = mode + 1;
-  settingsAfterLoad.wifi_Mode = wifimode;
-  writeEcho();
   
-  switch (mode)
-  {
-	  case 1:	//STA MODE
-		  writeFVEW(false);
-	  break;
-	  case 2://ETH MODE
-		writeFVEW(true);
-	  break;
-	  default://AP MODE
-		writeFVEW(false);
-	  break;
-  }
+  
+  if(mode == 2)writeFVEW(true);
+  else writeFVEW(false);
+	  
   writeRELD();
   
-   for (int i = 0; i < 250 ; i++)
+   for (int i = 0; i < 400 ; i++)
    {
 	   digitalWrite(PowerLEDPin, LOW);
 	   delay(25);
 	   digitalWrite(PowerLEDPin, HIGH);
 	   delay(25);
+	   if(Serial1.find("_reb")) break;
    }
+   digitalWrite(PowerLEDPin, LOW);
+   delay(500);
+   digitalWrite(PowerLEDPin, HIGH);
+   delay(500);
   configurationMode();
   writeEcho();
-  
+  writeArtNet(false);
   
   writeMode(isSTA);
+  writeLANN(!isWifiOn);
   
+  //Now Things are different
+  char CMD[] = "ENTM";
    switch (mode)
    {
 	   case 1:	//STA MODE
 		  writeSTASecurity();
 		  connectToSSID();
+		  writeReset(); 
+		  
+		  for (int i = 0; i < 400 ; i++)
+		  {
+			  digitalWrite(PowerLEDPin, LOW);
+			  delay(25);
+			  digitalWrite(PowerLEDPin, HIGH);
+			  delay(25);
+			  if(Serial1.find("_reb")) break;
+		  }
+		  
+		  digitalWrite(PowerLEDPin, LOW);
+		  delay(500);
+		  digitalWrite(PowerLEDPin, HIGH);
+		  delay(500);
+		  
+		  configurationMode();
+		  writeEcho();
+		  //writeWANN(1);
+		  sendCommand(CMD);		  
 	   break;
 	   case 2://ETH MODE
+		   writeReset();
+		   for (int i = 0; i < 400 ; i++)
+		   {
+			   digitalWrite(PowerLEDPin, LOW);
+			   delay(25);
+			   digitalWrite(PowerLEDPin, HIGH);
+			   delay(25);
+			   if(Serial1.find("_reb")) break;
+		   }
+		   digitalWrite(PowerLEDPin, LOW);
+		   delay(500);
+		   digitalWrite(PowerLEDPin, HIGH);
+		   delay(500);
+		   configurationMode();
+		   writeEcho();
+		   writeWIFI(isWifiOn);
+		   //writeWANN(1);
+		   sendCommand(CMD);
 	   break;
 	   default://AP MODE
+			writeReset(); 
 	   break;
    }
   
-  writeLANN(isSTA);
-  writeWANN(1);
-  writeFVER(WANN);
-  
-  if(!isWifiOn)
-  {
-	  writeReset(); 
-	  
-	  for (int i = 0; i < 250 ; i++)
-	  {
-		  digitalWrite(PowerLEDPin, LOW);
-		  delay(25);
-		  digitalWrite(PowerLEDPin, HIGH);
-		  delay(25);
-	  }
-	  configurationMode();
-	  writeEcho();
-	  
-	  writeWIFI(isWifiOn);
-	  
-	  char CMD[] = "ENTM";
-	  sendCommand(CMD);
-  }else
-  {
-	writeWIFI(isWifiOn);
-	writeReset();  
-  }
   digitalWrite(PowerLEDPin, LOW);
   delay(250);
   digitalWrite(PowerLEDPin, HIGH);
@@ -1598,6 +1623,7 @@ void writeConfig()
 	  //return;
 	  
 	writeEcho();
+	writeArtNet(false);
 	writeUDPinfo();//NETP
 	writeMode(true);//WMODE
 	writeWANN(1);
@@ -1648,6 +1674,18 @@ void writeEcho()
 	char CMD[] = "E";
 	sendCommand(CMD);
 }
+void writeArtNet(bool enabled)
+{
+	if (enabled)
+	{
+		char CMD[] = "ARTNET=1";
+		sendCommand(CMD);
+	} else
+	{
+		char CMD[] = "ARTNET=1";
+		sendCommand(CMD);
+	}
+}
 void writeFSSSID()
 {
 	char CMD[] = "FSSSID=Ratpac AKS";
@@ -1675,6 +1713,11 @@ void writePassword()
 }
 void writeReset()
 {
+	digitalWrite(PowerLEDPin, LOW);
+	delay(500);
+	digitalWrite(PowerLEDPin, HIGH);
+	delay(500);
+	
   char CMD[] = "Z";
   sendCommand(CMD);
 }
@@ -1722,11 +1765,11 @@ void writeSTASecurity()
   char CMD[] = "WSKEY=WPA2PSK,AES,quietonset";
   sendCommand(CMD);
 }
-void writeLANN(byte i)
+void writeLANN(byte eth)
 {
-	if(i)
+	if(eth)
 	{
-		char CMD[] = "LANN=10.10.99.254,255.0.0.0";
+		char CMD[] = "LANN=10.10.99.254,255.255.255.0";
 		sendCommand(CMD);
 	}else
 	{
