@@ -20,7 +20,7 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 bool Checksum(unsigned char* val1, unsigned char* val2, int length);
 void FadeChannels();
 byte sendCommand(char* CMD, byte attempts, byte timeout);
-//byte sendCommand(char* CMD);
+byte sendCommand(char* CMD);
 int configurationMode();
 void loadDataFromEEPROM();
 bool hasSettingsChanged();
@@ -581,8 +581,11 @@ void FadeChannels()
 
 byte sendCommand(char CMD[])
 {
-	byte attempts = 3;
-	byte timeout = 3;
+	sendCommand(CMD, 3, 3);
+}
+
+byte sendCommand(char CMD[], byte attempts, byte timeout)
+{
 	byte gotReply = 0;//0 == Nothing
 	while (Serial1.available() > 0) Serial1.read();
 	for (u_int8_t i = 0; i < attempts; i++)
@@ -611,7 +614,6 @@ byte sendCommand(char CMD[])
 				break;
 			}
 		}
-		gotReply = 3;//3 == no reply
 	}
 	digitalWrite(PowerLEDPin, LOW);
 	delay(100);
