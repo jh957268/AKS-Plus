@@ -30,6 +30,7 @@ void CheckPower();
 void resetBattery();
 void CheckDMX();
 void CheckLink();
+void CheckID();
 void Shutdown();
 void batOperatingLED();
 void setWIFILED();
@@ -253,6 +254,13 @@ byte wifiLedBlinkMode = 0;
 byte wifimode = 0;
 bool isWifiAlive = false;
 
+
+elapsedMillis IDTimeout;
+bool IDEnable = true;
+byte IDLEDS, IDTicks = 100;
+
+
+
 //Random
 bool up = false;//Sets the direction of the fade method
 
@@ -464,6 +472,7 @@ bool wifiReset = false;
 void loop()
 {
   CheckPower();
+  CheckID();
   CheckLink();
   DMXactivity();
   CheckDMX();
@@ -650,6 +659,8 @@ void loadDataFromEEPROM()
 {
   settingsBeforeLoad = settingsInEEPROM.read();
   settingsAfterLoad = settingsBeforeLoad;
+  settingsAfterLoad.Battery[0] = 0b00110111;
+  settingsAfterLoad.Battery[2] = 0b01111100;
 }
 
 bool hasSettingsChanged()
@@ -815,6 +826,7 @@ void CheckDMX()
 {
   if (dmxFrameTimeout > 500 && !gettingDMX)
   {
+	dmxFrameTimeout = 0;
     digitalWrite(11, LOW);// Turns off DMX led
   }
 }
@@ -850,11 +862,38 @@ void CheckLink()
     if(bootToUpdate)SerialUSB.println("Unlinking");
   }
 }
+
+void CheckID()
+{
+	if(!IDEnable)return;
+	if(!IDTicks)
+	{
+		IDEnable = false;
+		
+		//asm volatile ("jmp 0");  
+		//NVIC_SystemReset();
+
+		return;
+	}
+	if(IDTimeout > 100)
+	{
+		IDTicks--;
+		IDTimeout = 0;
+		digitalWrite(BatLEDPin, !digitalRead(BatLEDPin));
+		digitalWrite(wifiLEDPin, !digitalRead(wifiLEDPin));
+		digitalWrite(PowerLEDPin, !digitalRead(PowerLEDPin));
+		digitalWrite(11, !digitalRead(11));
+		
+		//wifiLEDPin PowerLEDPin
+		
+	}
+}
+
 void Shutdown()
 {
     loadDataToEEPROM();
     delay(100);
-  digitalWrite(A0, LOW);// unlatches System power
+	digitalWrite(A0, LOW);// unlatches System power
 }
 void batOperatingLED()
 {
@@ -1264,12 +1303,12 @@ void checkAndParseUDP()
 						 Serial1.readBytes(wifiBuffer, 1);
                          switch (wifiBuffer[0])
                          {
-                          case 0:
-                             for (int i=0; i<5000; i++)
-                             {
-                                  if(Serial1.available() >= 35)break;
-                                  delayMicroseconds(10);// wait
-                             }
+							case 0: {
+								for (int i=0; i<5000; i++)
+								{
+									if(Serial1.available() >= 35)break;
+									delayMicroseconds(10);// wait
+								}
 							 /*
 								1-Config
 								1-IRQ Mask
@@ -1280,52 +1319,85 @@ void checkAndParseUDP()
 								11-Blocked_Channel
 								8-Battery
 								*/
-							 Serial1.readBytes(wifiBuffer, 35);
-                             if(settingsAfterLoad.timo_RF_Power != wifiBuffer[15])
-                             {
-                                bitSet(hasToUpdateTimoSettings, 5);
-                                settingsAfterLoad.timo_RF_Power = wifiBuffer[15];
-                             }
-                             if(memcmp(wifiBuffer + 16, settingsAfterLoad.timo_Blocked_Channel, sizeof(settingsAfterLoad.timo_Blocked_Channel)) != 0)
-                             {
-                                bitSet(hasToUpdateTimoSettings, 6);
-                                memcpy(settingsAfterLoad.timo_Blocked_Channel, wifiBuffer + 16, 11);
-                             }
-                           break;
-                           case 1: //artpoll Data in
-                             for (int i=0; i<5000; i++)
-                             {
-                                  if(Serial1.available() >= 22)break;
-                                  delayMicroseconds(10);// wait
-                             }
-                             Serial1.readBytes(ArtNetName, 18);
-                             ArtnetIP[0] = Serial1.read();
-                             ArtnetIP[1] = Serial1.read();
-                             ArtnetIP[2] = Serial1.read();
-                             ArtnetIP[3] = Serial1.read();
-                           break;
-                           case 2:
-                             for (int i=0; i<5000; i++)
-                             {
-                                  if(Serial1.available() >= 2)break;
-                                  delayMicroseconds(10);// wait
-                             }
-                             /*wifimode =*/ Serial1.read();
-                             byte link = Serial1.read();
-                             unsigned char buffer[1]; 
-                             if(link == 1)
-                             {//unlink
-                                   buffer[0] = 1;
-                                   spi_transfer(WRITE_REG(STATUS_REG), buffer, NULL, 1);
-                             }else if(link == 2)
-                             {//link
-                                   buffer[0] = 2;
-                                   spi_transfer(WRITE_REG(STATUS_REG), buffer, NULL, 1); 
-                             }
-                           break;
-                         }
-						 if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
-                         isWifiAlive = true;
+								Serial1.readBytes(wifiBuffer, 35);
+								if(settingsAfterLoad.timo_RF_Power != wifiBuffer[15])
+								{
+									bitSet(hasToUpdateTimoSettings, 5);
+									settingsAfterLoad.timo_RF_Power = wifiBuffer[15];
+								}
+								if(memcmp(wifiBuffer + 16, settingsAfterLoad.timo_Blocked_Channel, sizeof(settingsAfterLoad.timo_Blocked_Channel)) != 0)
+								{
+									bitSet(hasToUpdateTimoSettings, 6);
+									memcpy(settingsAfterLoad.timo_Blocked_Channel, wifiBuffer + 16, 11);
+								}
+								Serial1.write("OK");
+                           }break;
+                           case 1: { //artpoll Data in
+								for (int i=0; i<5000; i++)
+								{
+									if(Serial1.available() >= 22)break;
+									delayMicroseconds(10);// wait
+								}
+								Serial1.readBytes(ArtNetName, 18);
+								ArtnetIP[0] = Serial1.read();
+								ArtnetIP[1] = Serial1.read();
+								ArtnetIP[2] = Serial1.read();
+								ArtnetIP[3] = Serial1.read();
+								Serial1.write("OK");
+                           }break;
+                           case 2: {
+								for (int i=0; i<5000; i++)
+								{
+									if(Serial1.available() >= 2)break;
+									delayMicroseconds(10);// wait
+								}
+								/*wifimode =*/ Serial1.read();
+								byte link = Serial1.read();
+								unsigned char buffer[1]; 
+								switch (link)
+								{
+									case 1:
+										buffer[0] = 1;
+										spi_transfer(WRITE_REG(STATUS_REG), buffer, NULL, 1);
+									break;
+									case 2:
+										/* Your code here */
+										buffer[0] = 2;
+										spi_transfer(WRITE_REG(STATUS_REG), buffer, NULL, 1);
+									break;
+									default:
+										/* Invalid */
+									break;
+								}
+								Serial1.write("OK");
+							}break;
+							case 3: {
+								if (!IDEnable)
+								{
+									IDEnable = true;
+									IDTimeout = 0;
+									IDTicks = 100;
+									//TODO: Remember LEDS
+									IDLEDS = 0;
+									IDLEDS |= (digitalRead(BatLEDPin))<<3 |(digitalRead(wifiLEDPin))<<2 |(digitalRead(PowerLEDPin))<<1 |(digitalRead(11));										
+								} 
+								else
+								{
+									IDEnable = false;
+									//TODO: Reset LEDS						
+									digitalWrite(BatLEDPin, bitRead(IDLEDS, 3));
+									digitalWrite(wifiLEDPin, bitRead(IDLEDS, 2));
+									digitalWrite(PowerLEDPin, bitRead(IDLEDS, 1));
+									digitalWrite(11, bitRead(IDLEDS, 0));
+								}
+								Serial1.write("OK");
+							}break;
+							default: {
+							/* Invalid */
+							}break;
+						}
+						if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
+                        isWifiAlive = true;
 					break;
                     default: 
                          SerialUSB.print("Unknown ArtNet OpCode: ");

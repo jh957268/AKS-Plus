@@ -32,6 +32,7 @@ extern "C" void __libc_init_array(void);
  */
 int main( void )
 {
+	
   init();
 
   __libc_init_array();
