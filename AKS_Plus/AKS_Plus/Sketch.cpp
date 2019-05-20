@@ -30,6 +30,7 @@ void CheckPower();
 void resetBattery();
 void CheckDMX();
 void CheckLink();
+void CheckWS2811();
 void CheckID();
 void Shutdown();
 void batOperatingLED();
@@ -80,6 +81,15 @@ void writeSecondChannel();
 void writeBitSettings();
 //End of Auto generated function prototypes by Atmel Studio
 
+
+#define CYCLES_IN_DLYTICKS_FUNC        8
+#define NS_TO_DLYTICKS(ns)          (uint32_t)(ns / (CYCLES_IN_DLYTICKS_FUNC * 20)) // ((float)(F_CPU)) / 1000.0
+#define US_TO_DLYTICKS(us)          (uint32_t)(48000000 / 1000000 * us / CYCLES_IN_DLYTICKS_FUNC) // ((float)(F_CPU)) / 1000.0
+#define MS_TO_DLYTICKS(ms)          (uint32_t)(48000000 / 1000 * ms / CYCLES_IN_DLYTICKS_FUNC) // ((float)(F_CPU)) / 1000.0
+#define DelayTicks(ticks)            {volatile uint32_t n=ticks; while(n--);}//takes 8 cycles
+#define DelayMs(ms)                    DelayTicks(MS_TO_DLYTICKS(ms))//uses 20bytes
+#define DelayUs(us)                    DelayTicks(US_TO_DLYTICKS(us))//uses 20bytes
+#define DelayNs(ns)                    DelayTicks(NS_TO_DLYTICKS(ns))//uses 20bytes
 
 
 /* Timo Registry Values
@@ -256,9 +266,10 @@ bool isWifiAlive = false;
 
 
 elapsedMillis IDTimeout;
-bool IDEnable = true;
-byte IDLEDS, IDTicks = 100;
+bool IDEnable;
+byte IDLEDS, IDTicks;
 
+uint8_t pixelData[3];
 
 
 //Random
@@ -354,6 +365,7 @@ void setup()
   //SERCOM0->USART.INTENSET.reg |= SERCOM_USART_INTENSET_DRE;
   Wire.begin(); // join i2c bus (address optional for master)
   Wire.setClock(400000L);
+
 
   loadDataFromEEPROM();
 
@@ -464,6 +476,43 @@ buffer[0] = 1;//settingsAfterLoad.timo_DMX_Control;
           //Serial2.write('0');
     }
   }
+  
+  
+  // 3: Ethernet Mode, 2: Sta mode, 1: AP mode
+  if (1 == settingsAfterLoad.wifi_Mode)
+  {
+	  return;
+  }
+  elapsedMillis timeElapsed = 0;
+  while(timeElapsed < (8000))
+  {
+	  if(Serial1.find("_reboot"))
+	  {
+		  digitalWrite(wifiLEDPin, HIGH);
+		  delay(500);
+		  digitalWrite(wifiLEDPin, LOW);
+		  delay(500);
+		  break;
+	  }
+	  digitalWrite(wifiLEDPin, HIGH);
+	  delay(50);
+	  digitalWrite(wifiLEDPin, LOW);
+	  delay(50);
+  }
+  digitalWrite(wifiLEDPin, HIGH);
+  delay(500);
+  digitalWrite(wifiLEDPin, LOW);
+  delay(500);
+  configurationMode();//Enter config mode
+  writeEcho();	//Turn off Echo
+  if (3 == settingsAfterLoad.wifi_Mode)
+  {
+	  writeWIFI(false);  // Turn off wifi for ethernet mode
+  }
+  writeArtNet(true);
+  char CMD[] = "ENTM";
+  sendCommand(CMD);
+  
 }
 
 elapsedMillis timer;
@@ -474,6 +523,7 @@ void loop()
   CheckPower();
   CheckID();
   CheckLink();
+  CheckWS2811();
   DMXactivity();
   CheckDMX();
   //Serial2.write('0');
@@ -588,6 +638,18 @@ void FadeChannels()
     }
 }
 
+void fatal_error(void)
+{
+	while (1)
+	{
+		CheckPower();
+		digitalWrite(wifiLEDPin, HIGH);
+		delay(500);
+		digitalWrite(wifiLEDPin, LOW);
+		delay(500);
+	}
+}
+
 byte sendCommand(char CMD[])
 {
 	sendCommand(CMD, 3, 3);
@@ -617,42 +679,56 @@ byte sendCommand(char CMD[], byte attempts, byte timeout)
 				gotReply = 2;//2 == OK
 				break;
 			}
+			#if 0
 			if(Serial1.find("+ERR"))
 			{
 				gotReply = 1;//2 == ERROR
 				break;
 			}
+			#endif
 		}
 	}
 	digitalWrite(PowerLEDPin, LOW);
 	delay(100);
 	digitalWrite(PowerLEDPin, HIGH);
 	delay(100);
+	if (2 != gotReply)
+	{
+		fatal_error();
+	}
 	return gotReply;
 }
 int configurationMode()
-{//Put HF-A11 into configuration mode 
+{//Put HF-A11 into configuration mode
 	while (Serial1.available() > 0) Serial1.read();
-  elapsedMillis timeElapsed = 0;
-  bool gotReply = false;
-  Serial1.print("+++");
-  Serial1.flush();
-  while(timeElapsed < 2500 && gotReply == false)
-  {
-    if(Serial1.find("a"))gotReply = true;
-  }
-  if(!gotReply)return 0;
-  gotReply = false;
-  delay(10);
-  Serial1.print("a");
-  Serial1.flush();
-  while(timeElapsed < 2500 && gotReply == false)
-  {
-    if(Serial1.find("+ok"))gotReply = true;
-  }
-  delay(25);
-  if(!gotReply)return 1;  
-  return 2;
+	elapsedMillis timeElapsed = 0;
+	bool gotReply = false;
+	Serial1.print("+++");
+	Serial1.flush();
+	while(timeElapsed < 2500 && gotReply == false)
+	{
+		if(Serial1.find("a"))gotReply = true;
+	}
+	if(!gotReply)
+	{
+		fatal_error();
+		return 0;
+	}
+	gotReply = false;
+	delay(10);
+	Serial1.print("a");
+	Serial1.flush();
+	while(timeElapsed < 2500 && gotReply == false)
+	{
+		if(Serial1.find("+ok"))gotReply = true;
+	}
+	delay(25);
+	if(!gotReply)
+	{
+		fatal_error();
+		return 1;
+	}
+	return 2;
 }
 
 void loadDataFromEEPROM()
@@ -863,16 +939,37 @@ void CheckLink()
   }
 }
 
+void CheckWS2811()
+{
+	uint8_t bitMask;
+	noInterrupts();// cli();
+	for (uint16_t p=0; p<3; p++) {
+		bitMask = 0x80;
+		while (bitMask)
+		{
+			REG_PORT_OUTSET0 = PORT_PA09;
+			if ( pixelData[p] & bitMask ) {
+				DelayNs(30)
+			}
+			else {
+				REG_PORT_OUTCLR0 = PORT_PA09;
+			}
+			DelayNs(30)
+			REG_PORT_OUTCLR0 = PORT_PA09;
+			DelayNs(20)
+			bitMask >>= 1;
+		}
+		
+	}
+	interrupts();
+}
+
 void CheckID()
 {
 	if(!IDEnable)return;
 	if(!IDTicks)
 	{
 		IDEnable = false;
-		
-		//asm volatile ("jmp 0");  
-		//NVIC_SystemReset();
-
 		return;
 	}
 	if(IDTimeout > 100)
@@ -1330,7 +1427,7 @@ void checkAndParseUDP()
 									bitSet(hasToUpdateTimoSettings, 6);
 									memcpy(settingsAfterLoad.timo_Blocked_Channel, wifiBuffer + 16, 11);
 								}
-								Serial1.write("OK");
+								Serial1.println("OK");
                            }break;
                            case 1: { //artpoll Data in
 								for (int i=0; i<5000; i++)
@@ -1343,35 +1440,42 @@ void checkAndParseUDP()
 								ArtnetIP[1] = Serial1.read();
 								ArtnetIP[2] = Serial1.read();
 								ArtnetIP[3] = Serial1.read();
-								Serial1.write("OK");
+								Serial1.println("OK");
                            }break;
-                           case 2: {
+						   // 5 = battery
+						   // 6 gaffers
+						   
+						
+						   
+                           case 3: {
 								for (int i=0; i<5000; i++)
 								{
 									if(Serial1.available() >= 2)break;
 									delayMicroseconds(10);// wait
 								}
-								/*wifimode =*/ Serial1.read();
+								/*wifimode =*/ //Serial1.read();
 								byte link = Serial1.read();
 								unsigned char buffer[1]; 
 								switch (link)
 								{
 									case 1:
+										delay(5);
 										buffer[0] = 1;
 										spi_transfer(WRITE_REG(STATUS_REG), buffer, NULL, 1);
 									break;
 									case 2:
+										delay(5);
 										/* Your code here */
 										buffer[0] = 2;
 										spi_transfer(WRITE_REG(STATUS_REG), buffer, NULL, 1);
 									break;
-									default:
-										/* Invalid */
+									default:/* Invalid */
+										IDTimeout = 0;
 									break;
 								}
-								Serial1.write("OK");
+								Serial1.println("OK");
 							}break;
-							case 3: {
+							case 4: {
 								if (!IDEnable)
 								{
 									IDEnable = true;
@@ -1383,17 +1487,31 @@ void checkAndParseUDP()
 								} 
 								else
 								{
-									IDEnable = false;
+									/*IDEnable = false;
 									//TODO: Reset LEDS						
 									digitalWrite(BatLEDPin, bitRead(IDLEDS, 3));
 									digitalWrite(wifiLEDPin, bitRead(IDLEDS, 2));
 									digitalWrite(PowerLEDPin, bitRead(IDLEDS, 1));
 									digitalWrite(11, bitRead(IDLEDS, 0));
+									*/
 								}
-								Serial1.write("OK");
+								Serial1.println("OK");
 							}break;
-							default: {
-							/* Invalid */
+							case 6:{
+								for (int i=0; i<5000; i++)
+								{
+									if(Serial1.available() >= 2)break;
+									delayMicroseconds(10);// wait
+								}
+								
+							    byte GafferBuffer[6];
+							    Serial1.readBytes(GafferBuffer, 6);
+								IDTimeout = 0;
+								
+								
+							}break;
+							default: {/* Invalid */
+								Serial1.println("OK");
 							}break;
 						}
 						if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
@@ -1572,130 +1690,149 @@ void cycleWifi(byte mode)
 	delay(250);
 	digitalWrite(PowerLEDPin, HIGH);
 	
-  configurationMode();//Enter config mode
-  writeEcho();	//Turn off Echo
-  writeArtNet(false);
-  
-  byte WANN = 1;
-  wifimode = mode + 1; //Fix wifimode indexing
-  settingsAfterLoad.wifi_Mode = wifimode;//apply settings to new wifimode
-  
-  switch (mode)
-  {
-    case 1:	//STA MODE
-        isWifiOn = true;
-        isSTA = true;
-      break;
-    case 2://ETH MODE
+	configurationMode();//Enter config mode
+	writeEcho();	//Turn off Echo
+	// writeArtNet(false);
+	
+	byte WANN = 1;
+	wifimode = mode + 1; //Fix wifimode indexing
+	settingsAfterLoad.wifi_Mode = wifimode;//apply settings to new wifimode
+	
+	switch (mode)
+	{
+		case 1:	//STA MODE
+		isWifiOn = true;
+		isSTA = true;
+		break;
+		case 2://ETH MODE
 		WANN = 0;
-        isWifiOn = false;  
-        isSTA = false;   
-    break;
-    default://AP MODE
-        isWifiOn = true;
-        isSTA = false;
-	break;
-  }
-  
-  
-  if(mode == 2)writeFVEW(true);
-  else writeFVEW(false);
-	  
-  writeRELD();
-  
-   for (int i = 0; i < 400 ; i++)
-   {
-	   digitalWrite(PowerLEDPin, LOW);
-	   delay(25);
-	   digitalWrite(PowerLEDPin, HIGH);
-	   delay(25);
-	   if(Serial1.find("_reb")) break;
-   }
-   digitalWrite(PowerLEDPin, LOW);
-   delay(500);
-   digitalWrite(PowerLEDPin, HIGH);
-   delay(500);
-  configurationMode();
-  writeEcho();
-  writeArtNet(false);
-  
-  writeMode(isSTA);
-  writeLANN(!isWifiOn);
-  
-  //Now Things are different
-  char CMD[] = "ENTM";
-   switch (mode)
-   {
-	   case 1:	//STA MODE
-		  writeSTASecurity();
-		  connectToSSID();
-		  writeReset(); 
-		  
-		  for (int i = 0; i < 400 ; i++)
-		  {
-			  digitalWrite(PowerLEDPin, LOW);
-			  delay(25);
-			  digitalWrite(PowerLEDPin, HIGH);
-			  delay(25);
-			  if(Serial1.find("_reb")) break;
-		  }
-		  
-		  digitalWrite(PowerLEDPin, LOW);
-		  delay(500);
-		  digitalWrite(PowerLEDPin, HIGH);
-		  delay(500);
-		  
-		  configurationMode();
-		  writeEcho();
-		  //writeWANN(1);
-		  sendCommand(CMD);		  
-	   break;
-	   case 2://ETH MODE
-		   writeReset();
-		   for (int i = 0; i < 400 ; i++)
-		   {
-			   digitalWrite(PowerLEDPin, LOW);
-			   delay(25);
-			   digitalWrite(PowerLEDPin, HIGH);
-			   delay(25);
-			   if(Serial1.find("_reb")) break;
-		   }
-		   digitalWrite(PowerLEDPin, LOW);
-		   delay(500);
-		   digitalWrite(PowerLEDPin, HIGH);
-		   delay(500);
-		   configurationMode();
-		   writeEcho();
-		   writeWIFI(isWifiOn);
-		   //writeWANN(1);
-		   sendCommand(CMD);
-	   break;
-	   default://AP MODE
-			writeReset(); 
-	   break;
-   }
-  
-  digitalWrite(PowerLEDPin, LOW);
-  delay(250);
-  digitalWrite(PowerLEDPin, HIGH);
-  delay(250);
-  digitalWrite(PowerLEDPin, LOW);
-  delay(250);
-  digitalWrite(PowerLEDPin, HIGH);
+		isWifiOn = false;
+		isSTA = false;
+		break;
+		default://AP MODE
+		isWifiOn = true;
+		isSTA = false;
+		break;
+	}
+	
+	
+	if(mode == 2)writeFVEW(true);
+	else writeFVEW(false);
+	
+	writeRELD();
+	
+	for (int i = 0; i < 400 ; i++)
+	{
+		digitalWrite(PowerLEDPin, LOW);
+		delay(25);
+		digitalWrite(PowerLEDPin, HIGH);
+		delay(25);
+		if(Serial1.find("_reb")) break;
+	}
+	digitalWrite(PowerLEDPin, LOW);
+	delay(500);
+	digitalWrite(PowerLEDPin, HIGH);
+	delay(500);
+	configurationMode();
+	writeEcho();
+	// writeArtNet(false);
+	
+	writeMode(isSTA);
+	if (mode == 1 || mode == 2)     // Ethernet or Sta mode
+	{
+		writeLANN(1);
+	}
+	else
+	{
+		writeLANN(0);
+	}
+	//writeLANN(!isWifiOn);
+	
+	//Now Things are different
+	char CMD[] = "ENTM";
+	switch (mode)
+	{
+		case 1:	//STA MODE
+		writeSTASecurity();
+		connectToSSID();
+		writeReset();
+		
+		//pre_loop();
+		#if 0
+		for (int i = 0; i < 400 ; i++)
+		{
+			digitalWrite(PowerLEDPin, LOW);
+			delay(25);
+			digitalWrite(PowerLEDPin, HIGH);
+			delay(25);
+			if(Serial1.find("_reb")) break;
+		}
+		
+		digitalWrite(PowerLEDPin, LOW);
+		delay(500);
+		digitalWrite(PowerLEDPin, HIGH);
+		delay(500);
+		
+		configurationMode();
+		writeEcho();
+		checkWANIP(0);
+		writeArtNet(true);
+		//writeWANN(1);
+		sendCommand(CMD);
+		#endif
+		break;
+		case 2://ETH MODE
+		writeReset();
+		//pre_loop();
+		
+		for (int i = 0; i < 400 ; i++)
+		{
+			digitalWrite(PowerLEDPin, LOW);
+			delay(25);
+			digitalWrite(PowerLEDPin, HIGH);
+			delay(25);
+			if(Serial1.find("_reb")) break;
+		}
+		digitalWrite(PowerLEDPin, LOW);
+		delay(500);
+		digitalWrite(PowerLEDPin, HIGH);
+		delay(500);
+		configurationMode();
+		writeEcho();
+		writeWIFI(isWifiOn);
+		//checkWANIP(0);
+		//writeArtNet(true);
+		
+		//writeWANN(1);
+		sendCommand(CMD);
+		
+		break;
+		default://AP MODE
+		writeReset();
+		break;
+	}
+	
+	digitalWrite(PowerLEDPin, LOW);
+	delay(250);
+	digitalWrite(PowerLEDPin, HIGH);
+	delay(250);
+	digitalWrite(PowerLEDPin, LOW);
+	delay(250);
+	digitalWrite(PowerLEDPin, HIGH);
 }
 
 void writeConfig()
 {
 	digitalWrite(PowerLEDPin, LOW);
-	  delay(250);
-	  digitalWrite(PowerLEDPin, HIGH);
-	  delay(250);
-	  digitalWrite(PowerLEDPin, LOW);
-	  delay(250);
-	  digitalWrite(PowerLEDPin, HIGH);
-	  
-	  //return;
-	  
+	delay(250);
+	digitalWrite(PowerLEDPin, HIGH);
+	delay(250);
+	digitalWrite(PowerLEDPin, LOW);
+	delay(250);
+	digitalWrite(PowerLEDPin, HIGH);
+	
+	//return;
+	
 	writeEcho();
 	writeArtNet(false);
 	writeUDPinfo();//NETP
@@ -1756,7 +1893,7 @@ void writeArtNet(bool enabled)
 		sendCommand(CMD);
 	} else
 	{
-		char CMD[] = "ARTNET=1";
+		char CMD[] = "ARTNET=0";
 		sendCommand(CMD);
 	}
 }
@@ -1777,13 +1914,13 @@ void writeFSENC()
 }
 void writeSSID()
 {
-  char CMD[] = "WAP=11BGN,Ratpac AKS,CH1";
-  sendCommand(CMD);
+	char CMD[] = "WAP=11BGN,Ratpac AKS,CH1";
+	sendCommand(CMD);
 }
 void writePassword()
 {
-  char CMD[] = "WEBU=admin,admin";
-  sendCommand(CMD);
+	char CMD[] = "WEBU=admin,admin";
+	sendCommand(CMD);
 }
 void writeReset()
 {
@@ -1792,37 +1929,37 @@ void writeReset()
 	digitalWrite(PowerLEDPin, HIGH);
 	delay(500);
 	
-  char CMD[] = "Z";
-  sendCommand(CMD);
+	char CMD[] = "Z";
+	sendCommand(CMD);
 }
 void writeSecurity()
 {
-  char CMD[] = "WAKEY=WPA2PSK,AES,quietonset";
-  sendCommand(CMD);
+	char CMD[] = "WAKEY=WPA2PSK,AES,quietonset";
+	sendCommand(CMD);
 }
 void writeEthernet()
 {
-  char CMD[] = "FEPHY=on";
-  sendCommand(CMD);
+	char CMD[] = "FEPHY=on";
+	sendCommand(CMD);
 }
 void writeTCP()
 {
-  writeTcpPort();
+	writeTcpPort();
 }
 void writeTcpPort()
 {
-  char CMD[] = "TCPPTB=18899";
-  sendCommand(CMD);
+	char CMD[] = "TCPPTB=18899";
+	sendCommand(CMD);
 }
 void writeUDPinfo()
 {
-  char CMD[] = "NETP=UDP,CLIENT,6454,10.10.100.255";
-  sendCommand(CMD);
+	char CMD[] = "NETP=UDP,CLIENT,6454,10.10.100.255";
+	sendCommand(CMD);
 }
 void writeDHCP()
 {
-  char CMD[] = "DHCPDEN=on";
-  sendCommand(CMD);
+	char CMD[] = "DHCPDEN=on";
+	sendCommand(CMD);
 }
 void writeRELD()
 {
@@ -1831,13 +1968,13 @@ void writeRELD()
 }
 void connectToSSID()
 {
-  char CMD[] = "WSSSID=Ratpac AKS";
-  sendCommand(CMD);
+	char CMD[] = "WSSSID=Ratpac AKS";
+	sendCommand(CMD);
 }
 void writeSTASecurity()
 {
-  char CMD[] = "WSKEY=WPA2PSK,AES,quietonset";
-  sendCommand(CMD);
+	char CMD[] = "WSKEY=WPA2PSK,AES,quietonset";
+	sendCommand(CMD);
 }
 void writeLANN(byte eth)
 {
@@ -1877,7 +2014,7 @@ void writeFVEW(byte FVEW)
 		sendCommand(CMD);
 	}else
 	{
-		char CMD[] = "FVEW=enable";
+		char CMD[] = "FVEW=disable";
 		sendCommand(CMD);
 	}
 }
@@ -1885,76 +2022,76 @@ void writeFVEW(byte FVEW)
 
 void writeMode(byte STA)
 {
-  if(STA)
-  {
-    char CMD[] = "WMODE=STA";
-    sendCommand(CMD);
-  }else
-  {
-    char CMD[] = "WMODE=AP";
-    sendCommand(CMD);
-  }
+	if(STA)
+	{
+		char CMD[] = "WMODE=STA";
+		sendCommand(CMD);
+	}else
+	{
+		char CMD[] = "WMODE=AP";
+		sendCommand(CMD);
+	}
 }
 
 void writeFAPSTA(byte APSTA)
 {
-  if(APSTA)
-  {
-    char CMD[] = "FAPSTA=ON";
-    sendCommand(CMD);
-  }else
-  {
-    char CMD[] = "FAPSTA=OFF";
-    sendCommand(CMD);
-  }
+	if(APSTA)
+	{
+		char CMD[] = "FAPSTA=ON";
+		sendCommand(CMD);
+	}else
+	{
+		char CMD[] = "FAPSTA=OFF";
+		sendCommand(CMD);
+	}
 }
 
 void writeWIFI(byte on)
 {
-  if(on)
-  {
-    char CMD[] = "MSLP=ON";
-    sendCommand(CMD);
-  }else
-  {
-    char CMD[] = "MSLP=OFF";
-    sendCommand(CMD);
-  }
+	if(on)
+	{
+		char CMD[] = "MSLP=ON";
+		sendCommand(CMD);
+	}else
+	{
+		char CMD[] = "MSLP=OFF";
+		sendCommand(CMD);
+	}
 }
 void writeLang()
 {
-  char CMD[] = "FLANG=EN";
-  sendCommand(CMD);
+	char CMD[] = "FLANG=EN";
+	sendCommand(CMD);
 }
 void writeNodeName()
 {
-  char CMD[] = "NODENAME=Ratpac AKS";
-  sendCommand(CMD);
+	char CMD[] = "NODENAME=Ratpac AKS";
+	sendCommand(CMD);
 }
 void writeUniverse()
 {
-  char CMD[] = "UNIVERSE=0";
-  sendCommand(CMD);
+	char CMD[] = "UNIVERSE=0";
+	sendCommand(CMD);
 }
 void writeTimoPower()
 {
-  char CMD[] = "TIMOPOWER=3";
-  sendCommand(CMD);
+	char CMD[] = "TIMOPOWER=3";
+	sendCommand(CMD);
 }
 void writeChannelWidth()
 {
-  char CMD[] = "CHANNELWIDTH=16";
-  sendCommand(CMD);
+	char CMD[] = "CHANNELWIDTH=16";
+	sendCommand(CMD);
 }
 void writeSecondChannel()
 {
-  char CMD[] = "SECONDCHANNEL=0";
-  sendCommand(CMD);
+	char CMD[] = "SECONDCHANNEL=0";
+	sendCommand(CMD);
 }
 void writeBitSettings()
 {
-  char CMD[] = "BITSETTING=0";
-  sendCommand(CMD);
+	char CMD[] = "BITSETTING=0";
+	sendCommand(CMD);
 }
 
 //void SERCOM2_Handler()
