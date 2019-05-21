@@ -590,7 +590,7 @@ void FadeChannels()
 
 byte sendCommand(char CMD[])
 {
-	sendCommand(CMD, 3, 3);
+	sendCommand(CMD, 2, 10);
 }
 
 byte sendCommand(char CMD[], byte attempts, byte timeout)
@@ -617,11 +617,13 @@ byte sendCommand(char CMD[], byte attempts, byte timeout)
 				gotReply = 2;//2 == OK
 				break;
 			}
+#if 0			
 			if(Serial1.find("+ERR"))
 			{
 				gotReply = 1;//2 == ERROR
 				break;
 			}
+#endif			
 		}
 	}
 	digitalWrite(PowerLEDPin, LOW);
@@ -1574,7 +1576,7 @@ void cycleWifi(byte mode)
 	
   configurationMode();//Enter config mode
   writeEcho();	//Turn off Echo
-  writeArtNet(false);
+  // writeArtNet(false);
   
   byte WANN = 1;
   wifimode = mode + 1; //Fix wifimode indexing
@@ -1617,10 +1619,18 @@ void cycleWifi(byte mode)
    delay(500);
   configurationMode();
   writeEcho();
-  writeArtNet(false);
+  // writeArtNet(false);
   
   writeMode(isSTA);
-  writeLANN(!isWifiOn);
+  if (mode == 1 || mode == 2)     // Ethernet or Sta mode
+  {
+	  writeLANN(1);
+  }
+  else
+  {
+	  writeLANN(0);  
+  }
+  //writeLANN(!isWifiOn);
   
   //Now Things are different
   char CMD[] = "ENTM";
@@ -1631,6 +1641,7 @@ void cycleWifi(byte mode)
 		  connectToSSID();
 		  writeReset(); 
 		  
+#if 0		  
 		  for (int i = 0; i < 400 ; i++)
 		  {
 			  digitalWrite(PowerLEDPin, LOW);
@@ -1649,6 +1660,7 @@ void cycleWifi(byte mode)
 		  writeEcho();
 		  //writeWANN(1);
 		  sendCommand(CMD);		  
+#endif		  	  
 	   break;
 	   case 2://ETH MODE
 		   writeReset();
@@ -1756,7 +1768,7 @@ void writeArtNet(bool enabled)
 		sendCommand(CMD);
 	} else
 	{
-		char CMD[] = "ARTNET=1";
+		char CMD[] = "ARTNET=0";
 		sendCommand(CMD);
 	}
 }
@@ -1877,7 +1889,7 @@ void writeFVEW(byte FVEW)
 		sendCommand(CMD);
 	}else
 	{
-		char CMD[] = "FVEW=enable";
+		char CMD[] = "FVEW=disable";
 		sendCommand(CMD);
 	}
 }
