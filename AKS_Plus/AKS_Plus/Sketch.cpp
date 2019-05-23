@@ -652,7 +652,7 @@ void fatal_error(void)
 
 byte sendCommand(char CMD[])
 {
-	sendCommand(CMD, 3, 3);
+	sendCommand(CMD, 2, 10);
 }
 
 byte sendCommand(char CMD[], byte attempts, byte timeout)
@@ -1427,7 +1427,7 @@ void checkAndParseUDP()
 									bitSet(hasToUpdateTimoSettings, 6);
 									memcpy(settingsAfterLoad.timo_Blocked_Channel, wifiBuffer + 16, 11);
 								}
-								Serial1.println("OK");
+								//Serial1.println("OK");
                            }break;
                            case 1: { //artpoll Data in
 								for (int i=0; i<5000; i++)
@@ -1440,7 +1440,7 @@ void checkAndParseUDP()
 								ArtnetIP[1] = Serial1.read();
 								ArtnetIP[2] = Serial1.read();
 								ArtnetIP[3] = Serial1.read();
-								Serial1.println("OK");
+								//Serial1.println("OK");
                            }break;
 						   // 5 = battery
 						   // 6 gaffers
@@ -1473,7 +1473,7 @@ void checkAndParseUDP()
 										IDTimeout = 0;
 									break;
 								}
-								Serial1.println("OK");
+								Serial1.println("ok");
 							}break;
 							case 4: {
 								if (!IDEnable)
@@ -1495,7 +1495,7 @@ void checkAndParseUDP()
 									digitalWrite(11, bitRead(IDLEDS, 0));
 									*/
 								}
-								Serial1.println("OK");
+								Serial1.println("ok");
 							}break;
 							case 6:{
 								for (int i=0; i<5000; i++)
@@ -1511,7 +1511,7 @@ void checkAndParseUDP()
 								
 							}break;
 							default: {/* Invalid */
-								Serial1.println("OK");
+								//Serial1.println("OK");
 							}break;
 						}
 						if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
