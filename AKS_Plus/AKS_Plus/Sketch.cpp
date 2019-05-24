@@ -265,9 +265,9 @@ byte wifimode = 0;
 bool isWifiAlive = false;
 
 
-elapsedMillis IDTimeout;
-bool IDEnable;
-byte IDLEDS, IDTicks;
+elapsedMillis IDTimeout = 0;
+bool IDEnable = false;
+byte IDLEDS, IDTicks = 0;
 
 uint8_t pixelData[3];
 
@@ -523,7 +523,7 @@ void loop()
   CheckPower();
   CheckID();
   CheckLink();
-  CheckWS2811();
+  //CheckWS2811();
   DMXactivity();
   CheckDMX();
   //Serial2.write('0');
@@ -967,8 +967,10 @@ void CheckWS2811()
 void CheckID()
 {
 	if(!IDEnable)return;
+
 	if(!IDTicks)
 	{
+		digitalWrite(PowerLEDPin, HIGH);// Power LED
 		IDEnable = false;
 		return;
 	}
