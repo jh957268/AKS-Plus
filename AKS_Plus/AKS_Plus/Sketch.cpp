@@ -1489,13 +1489,13 @@ void checkAndParseUDP()
 								} 
 								else
 								{
-									/*IDEnable = false;
+									IDEnable = false;
 									//TODO: Reset LEDS						
 									digitalWrite(BatLEDPin, bitRead(IDLEDS, 3));
 									digitalWrite(wifiLEDPin, bitRead(IDLEDS, 2));
 									digitalWrite(PowerLEDPin, bitRead(IDLEDS, 1));
 									digitalWrite(11, bitRead(IDLEDS, 0));
-									*/
+									
 								}
 								Serial1.println("ok");
 							}break;
