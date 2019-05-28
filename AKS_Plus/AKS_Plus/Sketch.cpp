@@ -42,6 +42,7 @@ unsigned char spi_command(unsigned char cmd);
 void spi_payload(unsigned char* src, unsigned char* dst, int length);
 void timo_send_DMX();
 void checkAndParseUDP();
+uint8_t gencrc(uint8_t *data, size_t len);
 void setTimoChannels(byte channel);
 void isdmxTX(bool TX);
 void DMXactivity();
@@ -269,7 +270,7 @@ elapsedMillis IDTimeout = 0;
 bool IDEnable = false;
 byte IDLEDS, IDTicks = 0;
 
-uint8_t pixelData[3];
+uint8_t pixelData[3] = {0, 0, 0};
 
 
 //Random
@@ -357,6 +358,9 @@ void setup()
   if (!digitalRead(13))bootToUpdate = true;
   pinMode(11, OUTPUT); // Sets up the DMX led
   digitalWrite(11, LOW);// Turns off DMX led
+  
+  pinMode(26, OUTPUT);
+  
   SerialUSB.begin(250000);// Sets up USB interface
   Serial1.begin(230400);// Sets up UART interface
   Serial2.begin(250000, SERIAL_8N2);// Sets up XLR interface
@@ -520,6 +524,7 @@ int ie;
 bool wifiReset = false;
 void loop()
 {
+	CheckWS2811();
   CheckPower();
   CheckID();
   CheckLink();
@@ -947,15 +952,15 @@ void CheckWS2811()
 		bitMask = 0x80;
 		while (bitMask)
 		{
-			REG_PORT_OUTSET0 = PORT_PA09;
+			REG_PORT_OUTSET0 = PORT_PA27;
 			if ( pixelData[p] & bitMask ) {
 				DelayNs(30)
 			}
 			else {
-				REG_PORT_OUTCLR0 = PORT_PA09;
+				REG_PORT_OUTCLR0 = PORT_PA27;
 			}
 			DelayNs(30)
-			REG_PORT_OUTCLR0 = PORT_PA09;
+			REG_PORT_OUTCLR0 = PORT_PA27;
 			DelayNs(20)
 			bitMask >>= 1;
 		}
@@ -992,7 +997,8 @@ void Shutdown()
 {
     loadDataToEEPROM();
     delay(100);
-	digitalWrite(A0, LOW);// unlatches System power
+	digitalWrite(A0, LOW);
+	//NVIC_SystemReset();
 }
 void batOperatingLED()
 {
@@ -1512,8 +1518,54 @@ void checkAndParseUDP()
 								
 								
 							}break;
+							
+							case 7:{
+								Serial1.println("update");
+								for (int i=0; i<30000; i++)
+								{//Wait for full frame
+									delayMicroseconds(10);// wait
+									if(!(Serial1.available() < 3))
+									{
+										break;
+									}
+								}
+								while (Serial1.available())Serial1.read();
+								Serial1.println("ok");
+								
+								do 
+								{
+									for (int i=0; i<20000; i++)
+									 {//Wait for full frame
+										  delayMicroseconds(10);// wait  
+										  if(!(Serial1.available() < 513))
+										  {
+											   break;
+										  }
+									 }
+									 if(Serial1.available() < 513)
+									 {
+										 Serial1.println("ok");
+										 delay(1000);
+										 NVIC_SystemReset();
+										 
+										 return;
+										 
+									 }//skip frame if missing full frame
+									 byte FirmwareBuffer[512];
+									 Serial1.readBytes(FirmwareBuffer, 512);
+									 uint8_t crc = Serial1.read();
+									 uint8_t crc2 = gencrc(FirmwareBuffer, 512);
+									 
+									 if(crc == crc2)delayMicroseconds(100);
+									 
+									 Serial1.println("ok");
+								} while (1);	
+								
+							}break;
+							
+							
 							default: {/* Invalid */
-								//Serial1.println("OK");
+								Serial1.println("ok");
 							}break;
 						}
 						if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
@@ -1527,6 +1579,17 @@ void checkAndParseUDP()
           }
      }
 }
+
+uint8_t gencrc(uint8_t *data, size_t len)
+{
+	uint8_t crc = 0x00;
+	for (size_t i = 0; i < len; i++)
+    {
+            crc ^= data[i];
+    }
+	return crc;
+}
+
 void setTimoChannels(byte channel)
 {
   if(channel == 0)
