@@ -270,7 +270,7 @@ elapsedMillis IDTimeout = 0;
 bool IDEnable = false;
 byte IDLEDS, IDTicks = 0;
 
-uint8_t pixelData[3] = {0, 0, 0};
+uint8_t pixelData[3] = {255, 32, 0};
 
 
 //Random
@@ -996,6 +996,11 @@ void CheckID()
 void Shutdown()
 {
     loadDataToEEPROM();
+	
+	pixelData[0] = pixelData[1] = pixelData[2] = 0;
+	
+	CheckWS2811();
+	
     delay(100);
 	digitalWrite(A0, LOW);
 	//NVIC_SystemReset();
