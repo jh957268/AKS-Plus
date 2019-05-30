@@ -133,7 +133,7 @@ void writeBitSettings();
 
 bool isLaserAKS = false;
 
-
+//Flash(SAMD, 128 * 1024);
 
 
 /* Protocols
@@ -2171,5 +2171,64 @@ void writeBitSettings()
 //
 //  }
 //}
+void FlashClass_write(const volatile void *flash_ptr, const void *data, uint32_t size)
+{
+	// Calculate data boundaries
+	size = (size + 3) / 4;
+	volatile uint32_t *dst_addr = (volatile uint32_t *)flash_ptr;
+	//const uint8_t *src_addr = (uint8_t *)data;      make sure data is 32-bit align
+	const uint32_t *src_addr = (uint32_t *)data;
+
+	// Disable automatic page write
+	NVMCTRL->CTRLB.bit.MANW = 1;
+
+	// Do writes in pages
+	while (size) {
+		// Execute "PBC" Page Buffer Clear
+		NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_PBC;
+		while (NVMCTRL->INTFLAG.bit.READY == 0) { }
+
+		// Fill page buffer
+		uint32_t i;
+		for (i=0; i<(FLASH_PAGE_SIZE/4) && size; i++) {
+			// *dst_addr = read_unaligned_uint32(src_addr);
+			*dst_addr = *src_addr;
+			//src_addr += 4;
+			src_addr++;
+			dst_addr++;
+			size--;
+		}
+
+		// Execute "WP" Write Page
+		NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_WP;
+		while (NVMCTRL->INTFLAG.bit.READY == 0) { }
+	}
+}
+
+void FlashClass_erase(const volatile void *flash_ptr)
+{
+	NVMCTRL->ADDR.reg = ((uint32_t)flash_ptr) / 2;
+	NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_ER;
+	while (!NVMCTRL->INTFLAG.bit.READY) { }
+}
+
+void FlashClass_read(const volatile void *flash_ptr, void *data, uint32_t size)
+{
+	memcpy(data, (const void *)flash_ptr, size);
+}
+
+#define FLASH_ROW_SIZE (FLASH_PAGE_SIZE * 4)
+void FlashClass_erase(const volatile void *flash_ptr, uint32_t size)
+{
+	const uint8_t *ptr = (const uint8_t *)flash_ptr;
+	while (size > FLASH_ROW_SIZE) {
+		FlashClass_erase(ptr);
+		ptr += FLASH_ROW_SIZE;
+		size -= FLASH_ROW_SIZE;
+	}
+	FlashClass_erase(ptr);
+}
+
+
 
 
