@@ -209,7 +209,9 @@ typedef struct
 
 } Settings;
 
-FlashStorage(settingsInEEPROM, Settings);
+//FlashStorage(settingsInEEPROM, Settings);
+#define EEPROM_ADDRESS (80 * 1024)
+FlashStorageClass<Settings> settingsInEEPROM((void *)EEPROM_ADDRESS);
 
 Settings settingsBeforeLoad;
 Settings settingsAfterLoad;
@@ -372,6 +374,11 @@ void setup()
 
 
   loadDataFromEEPROM();
+  
+  if ((false != settingsBeforeLoad.isValid) && (true != settingsBeforeLoad.isValid))
+  {
+	  settingsBeforeLoad.isValid = false;		// first time, the data is 0xff
+  }
 
   if (!settingsBeforeLoad.isValid)
   {
