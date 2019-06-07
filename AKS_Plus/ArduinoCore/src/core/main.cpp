@@ -38,8 +38,9 @@ int main( void )
   __libc_init_array();
 
   initVariant();
+  __enable_irq();
 
-  delay(1);
+  delay(5);
 #if defined(USBCON)
   USBDevice.init();
   USBDevice.attach();
