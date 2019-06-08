@@ -82,6 +82,7 @@ void writeSecondChannel();
 void writeBitSettings();
 //End of Auto generated function prototypes by Atmel Studio
 
+void FlashClass_erase(const volatile void *flash_ptr, uint32_t size);
 
 #define CYCLES_IN_DLYTICKS_FUNC        8
 #define NS_TO_DLYTICKS(ns)          (uint32_t)(ns / (CYCLES_IN_DLYTICKS_FUNC * 20)) // ((float)(F_CPU)) / 1000.0
@@ -344,6 +345,17 @@ void SERCOM1_Handler()
   }
 }
 
+#if 0
+volatile int loop_flag = 1;
+
+void loop_dummy(void)
+{
+	loop_flag = 0;
+}
+#endif
+
+volatile unsigned char eeprom_flag;
+
 void setup()
 {
   if (isLaserAKS)
@@ -353,6 +365,14 @@ void setup()
   }
   pinMode(A0, OUTPUT);// Sets up the system latch
   digitalWrite(A0, HIGH);// Hold system on
+  
+#if 0  
+  while (loop_flag)
+  {
+	  loop_dummy();
+  }
+#endif
+  
   pinMode (PowerLEDPin, OUTPUT);// Sets up the Power LED
   digitalWrite(PowerLEDPin, HIGH);// Power LED
   pinMode(A1, INPUT_PULLUP); //PullUp for power button detector
@@ -375,7 +395,8 @@ void setup()
 
   loadDataFromEEPROM();
   
-  if ((false != settingsBeforeLoad.isValid) && (true != settingsBeforeLoad.isValid))
+  eeprom_flag = (unsigned char)(settingsBeforeLoad.isValid);
+  if ((eeprom_flag != 0) && (eeprom_flag != 1))
   {
 	  settingsBeforeLoad.isValid = false;		// first time, the data is 0xff
   }
@@ -531,7 +552,7 @@ int ie;
 bool wifiReset = false;
 void loop()
 {
-	CheckWS2811();
+	//CheckWS2811();
   CheckPower();
   CheckID();
   CheckLink();
@@ -1534,11 +1555,38 @@ void checkAndParseUDP()
 							case 7:{
 								// do reset to jump to bootloader
 								// Disable all interrupts
+								#if 0
 								__disable_irq();
 								// Reset the device
-								NVIC_SystemReset() ;
+								// NVIC_SystemReset() ;
 
 								while (true);
+								#endif
+								uint32_t * ptr_reset_vector;
+								uint32_t * ptr_msp;
+								uint32_t app_start_add;
+
+								__disable_irq();
+								//Get reset vector from intvect table of application
+								ptr_reset_vector = (uint32_t *) (0+4);
+								app_start_add = (*ptr_reset_vector);
+								ptr_msp = (uint32_t *) (0);
+								__set_MSP(*(ptr_msp));
+								
+								FlashClass_erase((const volatile void *)0x4000, 128);
+				
+								/* Rebase the vector table base address */
+								SCB->VTOR = ((uint32_t) 0 & SCB_VTOR_TBLOFF_Msk);
+				
+								/* Load the Reset Handler address of the application */
+
+								//application_code_entry = (void (*)(void))(unsigned *)(*(unsigned *)(FIRMWARE_START_ADDR +4));
+				
+								/* Jump to user Reset Handler in the application */
+
+								//application_code_entry();
+								asm("bx %0"::"r"(app_start_add));								
+								
 							} break;
 							default: {/* Invalid */
 								Serial1.println("ok");
@@ -2142,6 +2190,25 @@ void writeBitSettings()
 //
 //  }
 //}
+
+void FlashClass_erase(const volatile void *flash_ptr)
+{
+	NVMCTRL->ADDR.reg = ((uint32_t)flash_ptr) / 2;
+	NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_ER;
+	while (!NVMCTRL->INTFLAG.bit.READY) { }
+}
+
+#define FLASH_ROW_SIZE (FLASH_PAGE_SIZE * 4)
+void FlashClass_erase(const volatile void *flash_ptr, uint32_t size)
+{
+	const uint8_t *ptr = (const uint8_t *)flash_ptr;
+	while (size > FLASH_ROW_SIZE) {
+		FlashClass_erase(ptr);
+		ptr += FLASH_ROW_SIZE;
+		size -= FLASH_ROW_SIZE;
+	}
+	FlashClass_erase(ptr);
+}
 
 
 
