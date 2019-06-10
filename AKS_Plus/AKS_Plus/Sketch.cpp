@@ -129,7 +129,9 @@ void FlashClass_erase(const volatile void *flash_ptr, uint32_t size);
 #define short_get_low_byte(x)  (LOW_BYTE & x)
 #define bytes_to_short(h,l) (((h << 8) & 0xff00) | (l & 0x00FF))
 
+#define AKS_VER "0.1"
 
+#define BATTERY_USAGE "USB 88"
 
 
 bool isLaserAKS = false;
@@ -1538,11 +1540,14 @@ void checkAndParseUDP()
 								}
 								Serial1.println("ok");
 							}break;
+							case 5:{      // return Battery and version
+								 Serial1.println(AKS_VER BATTERY_USAGE);
+							} break;
 							case 6:{
 								for (int i=0; i<5000; i++)
 								{
 									if(Serial1.available() >= 2)break;
-									delayMicroseconds(10);// wait
+								 	delayMicroseconds(10);// wait
 								}
 								
 							    byte GafferBuffer[6];
@@ -1589,7 +1594,7 @@ void checkAndParseUDP()
 								
 							} break;
 							default: {/* Invalid */
-								Serial1.println("ok");
+								Serial1.println("INV");
 							}break;
 						}
 						if(!isWifiAlive)wifimode = settingsAfterLoad.wifi_Mode;
