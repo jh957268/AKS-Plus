@@ -135,6 +135,11 @@ __attribute__ ((section(".isr_vector"))) const DeviceVectors exception_table =
 };
 
 extern int main(void);
+volatile int debug_flag = 0;
+
+void dummy_loop(void)
+{
+}
 
 /* This is called on processor reset to initialize the device and call main() */
 void Reset_Handler(void)
@@ -155,7 +160,12 @@ void Reset_Handler(void)
     for (pDest = &__bss_start__; pDest < &__bss_end__; pDest++)
       *pDest = 0;
   }
-
+#if 0
+while (debug_flag == 0)
+{
+	dummy_loop();
+}
+#endif
   SystemInit();
 
   main();
