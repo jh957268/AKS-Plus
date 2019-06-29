@@ -129,7 +129,7 @@ void FlashClass_erase(const volatile void *flash_ptr, uint32_t size);
 #define short_get_low_byte(x)  (LOW_BYTE & x)
 #define bytes_to_short(h,l) (((h << 8) & 0xff00) | (l & 0x00FF))
 
-#define AKS_VER "0.1"
+#define AKS_VER "0.2"
 
 #define BATTERY_USAGE "USB 88"
 
