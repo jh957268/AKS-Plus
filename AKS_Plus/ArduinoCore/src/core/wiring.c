@@ -83,7 +83,15 @@ void init( void )
   // Setup all pins (digital and analog) in INPUT mode (default is nothing)
   for (uint32_t ul = 0 ; ul < NUM_DIGITAL_PINS ; ul++ )
   {
-    pinMode( ul, INPUT ) ;
+	if ((PIN_A0 == ul) || (3 == ul) )
+	{
+		pinMode (ul, OUTPUT);// Sets up the latch, Power LED
+		digitalWrite(ul, HIGH);// Power LED
+	}
+	else
+	{
+		pinMode( ul, INPUT ) ;
+	}
   }
 
   // Initialize Analog Controller
