@@ -169,7 +169,7 @@ byte smallBuffer[11];// Artnet Header
 int framesRecived, framesDropped;
 bool trueForArtnet = true;
 unsigned char ArtnetIP[4] = {10, 10, 100, 254};
-
+bool ethLinked = false;
 /* Timo Parameters
 
    Stores all values in relation to the Timo
@@ -1131,86 +1131,25 @@ void batOperatingLED()
 }
 void setWIFILED()
 {
-  //wifimode = wifiCycle;
-  if(WIFIledstatus == 0)
-  {
-    wifiLedBlinkMode = 0;
-    if(wifimode == 1) wifiLedBlinkMode = 1;
-    if(wifimode == 2) wifiLedBlinkMode = 2;
-    if(wifimode == 3) wifiLedBlinkMode = 3;
-    if(wifimode == 4) wifiLedBlinkMode = 4;
-    WIFIledstatus = 1;
-    WIFILEDTimer = 0;
-  }
-  if(WIFIledstatus != 0)
-  {
-    if(wifiLedBlinkMode == 0)
-    {
-      if(WIFIledstatus == 1 && WIFILEDTimer >= 100)
-      {
-        digitalWrite(wifiLEDPin, LOW);
-        WIFIledstatus = 0;
-        WIFILEDTimer = 0;
-      }
-    }
-    if(wifiLedBlinkMode == 1)
-    {
-      if(WIFIledstatus == 1 && WIFILEDTimer >= 100)
-      {
-        digitalWrite(wifiLEDPin, HIGH);
-        WIFIledstatus = 0;
-        WIFILEDTimer = 0;
-      }
-    }
-    if(wifiLedBlinkMode == 2)
-    {
-      if(WIFIledstatus == 1 && WIFILEDTimer >= 900)
-      {
-        digitalWrite(wifiLEDPin, HIGH);
-        WIFIledstatus = 2;
-        WIFILEDTimer = 0;
-      }
-      if(WIFIledstatus == 2 && WIFILEDTimer >= 100)
-      {
-        digitalWrite(wifiLEDPin, LOW);
-        WIFIledstatus = 0;
-        WIFILEDTimer = 0;
-      }
-    }
-
-    if(wifiLedBlinkMode == 3)
-    {
-      if(WIFIledstatus == 1 && WIFILEDTimer >= 100)
-      {
-        digitalWrite(wifiLEDPin, HIGH);
-        WIFIledstatus = 2;
-        WIFILEDTimer = 0;
-      }
-      if(WIFIledstatus == 2 && WIFILEDTimer >= 900)
-      {
-        digitalWrite(wifiLEDPin, LOW);
-        WIFIledstatus = 0;
-        WIFILEDTimer = 0;
-      }
-    }
-    
-    if(wifiLedBlinkMode == 4)
-    {
-      if(WIFIledstatus == 1 && WIFILEDTimer >= 100)
-      {
-        digitalWrite(wifiLEDPin, HIGH);
-        WIFIledstatus = 2;
-        WIFILEDTimer = 0;
-      }
-      if(WIFIledstatus == 2 && WIFILEDTimer >= 100)
-      {
-        digitalWrite(wifiLEDPin, LOW);
-        WIFIledstatus = 0;
-        WIFILEDTimer = 0;
-      }
-    }
-    
-  }
+	uint8_t timeSlice = (millis()/100) % 10;
+	switch (wifimode)
+	{
+		case 1:
+			digitalWrite(wifiLEDPin, HIGH);
+		break;
+		case 2:	
+			digitalWrite(wifiLEDPin, (ethLinked) ? (!timeSlice || timeSlice == 2) : (!timeSlice));
+		break;
+		case 3:
+			digitalWrite(wifiLEDPin, (ethLinked) ? !(!timeSlice || timeSlice == 2) : (timeSlice));
+		break;
+		case 4:
+			digitalWrite(wifiLEDPin, timeSlice % 2);
+		break;
+		default:
+			digitalWrite(wifiLEDPin, LOW);
+		break;
+	}
 }
 void initManagement()
 {
@@ -1483,6 +1422,7 @@ void checkAndParseUDP()
 								ArtnetIP[1] = Serial1.read();
 								ArtnetIP[2] = Serial1.read();
 								ArtnetIP[3] = Serial1.read();
+								ethLinked = Serial1.read();
 								//Serial1.println("OK");
                            }break;
 						   // 5 = battery
@@ -1557,7 +1497,8 @@ void checkAndParseUDP()
 								
 							}break;
 							
-							case 7:{
+							case 7:
+							{
 								// do reset to jump to bootloader
 								// Disable all interrupts
 								#if 0
