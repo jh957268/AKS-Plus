@@ -83,15 +83,14 @@ void writeBitSettings();
 //End of Auto generated function prototypes by Atmel Studio
 
 void FlashClass_erase(const volatile void *flash_ptr, uint32_t size);
+void bootloader(void);
 
 #define CYCLES_IN_DLYTICKS_FUNC        8
-#define NS_TO_DLYTICKS(ns)          (uint32_t)(ns / (CYCLES_IN_DLYTICKS_FUNC * 20)) // ((float)(F_CPU)) / 1000.0
 #define US_TO_DLYTICKS(us)          (uint32_t)(48000000 / 1000000 * us / CYCLES_IN_DLYTICKS_FUNC) // ((float)(F_CPU)) / 1000.0
 #define MS_TO_DLYTICKS(ms)          (uint32_t)(48000000 / 1000 * ms / CYCLES_IN_DLYTICKS_FUNC) // ((float)(F_CPU)) / 1000.0
 #define DelayTicks(ticks)            {volatile uint32_t n=ticks; while(n--);}//takes 8 cycles
 #define DelayMs(ms)                    DelayTicks(MS_TO_DLYTICKS(ms))//uses 20bytes
 #define DelayUs(us)                    DelayTicks(US_TO_DLYTICKS(us))//uses 20bytes
-#define DelayNs(ns)                    DelayTicks(NS_TO_DLYTICKS(ns))//uses 20bytes
 
 
 /* Timo Registry Values
@@ -129,10 +128,7 @@ void FlashClass_erase(const volatile void *flash_ptr, uint32_t size);
 #define short_get_low_byte(x)  (LOW_BYTE & x)
 #define bytes_to_short(h,l) (((h << 8) & 0xff00) | (l & 0x00FF))
 
-#define AKS_VER "0.2"
-
-#define BATTERY_USAGE "USB 88"
-
+#define AKS_VER "1.B"
 
 bool isLaserAKS = false;
 
@@ -275,7 +271,7 @@ elapsedMillis IDTimeout = 0;
 bool IDEnable = false;
 byte IDLEDS, IDTicks = 0;
 
-uint8_t pixelData[3] = {255, 32, 0};
+uint8_t pixelData[3] = {0, 0, 0};
 
 
 //Random
@@ -554,7 +550,7 @@ int ie;
 bool wifiReset = false;
 void loop()
 {
-	//CheckWS2811();
+	CheckWS2811();
   CheckPower();
   CheckID();
   CheckLink();
@@ -978,20 +974,35 @@ void CheckWS2811()
 {
 	uint8_t bitMask;
 	noInterrupts();// cli();
-	for (uint16_t p=0; p<3; p++) {
+	for (uint16_t p=0; p<3; p++)
+	{
 		bitMask = 0x80;
 		while (bitMask)
 		{
-			REG_PORT_OUTSET0 = PORT_PA27;
-			if ( pixelData[p] & bitMask ) {
-				DelayNs(30)
+			uint8_t value = pixelData[p] & bitMask;
+			PORT->Group[0].OUTSET.reg = PORT_PA27;
+			if (value)
+			{	
+				DelayTicks(2)
+				PORT->Group[0].OUTCLR.reg = PORT_PA27;
+				DelayTicks(0)			
+			}else
+			{
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				PORT->Group[0].OUTCLR.reg = PORT_PA27;
+				DelayTicks(2)
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
+				asm("NOP");
 			}
-			else {
-				REG_PORT_OUTCLR0 = PORT_PA27;
-			}
-			DelayNs(30)
-			REG_PORT_OUTCLR0 = PORT_PA27;
-			DelayNs(20)
 			bitMask >>= 1;
 		}
 		
@@ -1414,14 +1425,9 @@ void checkAndParseUDP()
                            case 1: { //artpoll Data in
 								for (int i=0; i<5000; i++)
 								{
-									if(Serial1.available() >= 22)break;
+									if(Serial1.available() >= 1)break;
 									delayMicroseconds(10);// wait
 								}
-								Serial1.readBytes(ArtNetName, 18);
-								ArtnetIP[0] = Serial1.read();
-								ArtnetIP[1] = Serial1.read();
-								ArtnetIP[2] = Serial1.read();
-								ArtnetIP[3] = Serial1.read();
 								ethLinked = Serial1.read();
 								//Serial1.println("OK");
                            }break;
@@ -1431,7 +1437,7 @@ void checkAndParseUDP()
 						
 						   
                            case 3: {
-								for (int i=0; i<5000; i++)
+								for (int i=0; i<5001; i++)
 								{
 									if(Serial1.available() >= 2)break;
 									delayMicroseconds(10);// wait
@@ -1480,19 +1486,26 @@ void checkAndParseUDP()
 								}
 								Serial1.println("ok");
 							}break;
-							case 5:{      // return Battery and version
-								 Serial1.println(AKS_VER BATTERY_USAGE);
+							case 5:{      // return Battery and version	
+								 String stringThree = String(constrain(map(average, 700, 995, 0, 100), 0, 99));
+								 Serial1.println(AKS_VER + stringThree);
 							} break;
 							case 6:{
 								for (int i=0; i<5000; i++)
 								{
-									if(Serial1.available() >= 2)break;
+									if(Serial1.available() >= 8)break;
 								 	delayMicroseconds(10);// wait
 								}
 								
-							    byte GafferBuffer[6];
-							    Serial1.readBytes(GafferBuffer, 6);
+							    byte GafferBuffer[5];
+							    Serial1.readBytes(GafferBuffer, 5);
 								IDTimeout = 0;
+								
+								pixelData[1] = Serial1.read();
+								pixelData[0] = Serial1.read();
+								pixelData[2] = Serial1.read();
+								
+								CheckWS2811();
 								
 								
 							}break;
@@ -1501,6 +1514,8 @@ void checkAndParseUDP()
 							{
 								// do reset to jump to bootloader
 								// Disable all interrupts
+								bootloader();
+								
 								#if 0
 								__disable_irq();
 								// Reset the device
@@ -1508,6 +1523,8 @@ void checkAndParseUDP()
 
 								while (true);
 								#endif
+								
+								#if 0
 								uint32_t * ptr_reset_vector;
 								uint32_t * ptr_msp;
 								uint32_t app_start_add;
@@ -1532,7 +1549,7 @@ void checkAndParseUDP()
 
 								//application_code_entry();
 								asm("bx %0"::"r"(app_start_add));								
-								
+								#endif
 							} break;
 							default: {/* Invalid */
 								Serial1.println("INV");
@@ -1886,7 +1903,7 @@ void writeConfig()
 	writeFSKEY();
 	writeFSENC();
 	
-	writeReset();
+	cycleWifi(0);
 	
 	return;
 	writePassword();
@@ -2155,6 +2172,37 @@ void FlashClass_erase(const volatile void *flash_ptr, uint32_t size)
 	}
 	FlashClass_erase(ptr);
 }
+
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+void bootloader(void)
+{
+								uint32_t * ptr_reset_vector;
+								uint32_t * ptr_msp;
+								uint32_t app_start_add;
+
+								__disable_irq();
+								//Get reset vector from intvect table of application
+								ptr_reset_vector = (uint32_t *) (0+4);
+								app_start_add = (*ptr_reset_vector);
+								ptr_msp = (uint32_t *) (0);
+								__set_MSP(*(ptr_msp));
+								
+								FlashClass_erase((const volatile void *)0x4000, 128);
+								
+								/* Rebase the vector table base address */
+								SCB->VTOR = ((uint32_t) 0 & SCB_VTOR_TBLOFF_Msk);
+								
+								/* Load the Reset Handler address of the application */
+
+								//application_code_entry = (void (*)(void))(unsigned *)(*(unsigned *)(FIRMWARE_START_ADDR +4));
+								
+								/* Jump to user Reset Handler in the application */
+
+								//application_code_entry();
+								asm("bx %0"::"r"(app_start_add));	
+}
+#pragma GCC pop_options
 
 
 
