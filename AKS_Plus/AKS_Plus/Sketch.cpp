@@ -113,6 +113,8 @@ void bootloader(void);
 #define RF_POWER_REG        0x11
 #define BLOCKED_CHANNELS    0x12
 
+#define RGB_LED_COLOR	    0x33
+
 #define READ_REG(x)         (x)
 #define WRITE_REG(x)        (0x40 | x)
 #define NO_OPERATION        0xFF
@@ -1501,9 +1503,13 @@ void checkAndParseUDP()
 							    Serial1.readBytes(GafferBuffer, 5);
 								IDTimeout = 0;
 								
-								pixelData[1] = Serial1.read();
-								pixelData[0] = Serial1.read();
-								pixelData[2] = Serial1.read();
+								unsigned char colorbuffer[3]; 
+								
+								colorbuffer[0] = pixelData[1] = Serial1.read();
+								colorbuffer[1] = pixelData[0] = Serial1.read();
+								colorbuffer[2] = pixelData[2] = Serial1.read();
+								
+								spi_transfer(WRITE_REG(RGB_LED_COLOR), colorbuffer, NULL, 3);
 								
 								CheckWS2811();
 								
