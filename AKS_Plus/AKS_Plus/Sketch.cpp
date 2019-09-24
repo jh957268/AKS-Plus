@@ -53,6 +53,7 @@ void writeFVER(byte FVER);
 void writeFVEW(byte FVEW);
 void writeEcho();
 void writeArtNet(bool enabled);
+void writeDefault(bool enabled);
 void writeFSSSID();
 void writeFSKEY();
 void writeFSENC();
@@ -1893,6 +1894,7 @@ void writeConfig()
 	
 	writeEcho();
 	writeArtNet(false);
+	writeDefault(true);
 	writeUDPinfo();//NETP
 	writeMode(true);//WMODE
 	writeWANN(1);
@@ -1952,6 +1954,18 @@ void writeArtNet(bool enabled)
 	} else
 	{
 		char CMD[] = "ARTNET=0";
+		sendCommand(CMD);
+	}
+}
+void writeDefault(bool enabled)
+{
+	if (enabled)
+	{
+		char CMD[] = "DEFAULT=1";
+		sendCommand(CMD);
+	} else
+	{
+		char CMD[] = "DEFAULT=0";
 		sendCommand(CMD);
 	}
 }
