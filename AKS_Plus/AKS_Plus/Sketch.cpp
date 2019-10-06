@@ -131,7 +131,7 @@ void bootloader(void);
 #define short_get_low_byte(x)  (LOW_BYTE & x)
 #define bytes_to_short(h,l) (((h << 8) & 0xff00) | (l & 0x00FF))
 
-#define AKS_VER "1.B"
+#define AKS_VER "1.F"
 
 bool isLaserAKS = false;
 
@@ -849,7 +849,7 @@ void loadDataToDevices()
   if(bitRead(hasToUpdateTimoSettings, 5))
   {
     buffer[0] = settingsAfterLoad.timo_RF_Power;
-	if(buffer[0] < 3) buffer[0] = 3; // Limit AKS Lite to 65mW
+//	if(buffer[0] < 3) buffer[0] = 3; // Limit AKS Lite to 65mW
     spi_transfer(WRITE_REG(RF_POWER_REG), buffer, NULL, 1);
     bitClear(hasToUpdateTimoSettings, 5);
     delayMicroseconds(1000);
@@ -1867,6 +1867,7 @@ void cycleWifi(byte mode)
 		
 		break;
 		default://AP MODE
+		writeSSID();	
 		writeReset();
 		break;
 	}
@@ -1910,6 +1911,9 @@ void writeConfig()
 	writeFSSSID();
 	writeFSKEY();
 	writeFSENC();
+	
+	char CMD[] = "ENTM";
+	sendCommand(CMD);
 	
 	cycleWifi(0);
 	
