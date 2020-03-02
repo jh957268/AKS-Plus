@@ -131,7 +131,7 @@ void bootloader(void);
 #define short_get_low_byte(x)  (LOW_BYTE & x)
 #define bytes_to_short(h,l) (((h << 8) & 0xff00) | (l & 0x00FF))
 
-#define AKS_VER "1.F"
+#define AKS_VER "1.G"
 
 bool isLaserAKS = false;
 
@@ -813,6 +813,7 @@ void loadDataToDevices()
   if(bitRead(hasToUpdateTimoSettings, 0))
   {
     buffer[0] = settingsAfterLoad.timo_Config;
+	//bitClear(buffer[0], 0);
     spi_transfer(WRITE_REG(CONFIG_REG), buffer, NULL, 1);
     bitClear(hasToUpdateTimoSettings, 0);
     delayMicroseconds(1000);
@@ -1056,10 +1057,8 @@ void batOperatingLED()
   {
     batteryBlinkMode = 5;
     if(average >= 730) batteryBlinkMode = 4;
-    if(average >= 780) batteryBlinkMode = 3;
-    if(average >= 800) batteryBlinkMode = 2;
-    if(average >= 830) batteryBlinkMode = 1;
-    if(average >= 915) batteryBlinkMode = 0;
+    if(average >= 765) batteryBlinkMode = 3;
+    if(average >= 800) batteryBlinkMode = 0;
     ledstatus = 1;
     batteryTimer = 0;
   }
@@ -1506,8 +1505,8 @@ void checkAndParseUDP()
 								
 								unsigned char colorbuffer[3]; 
 								
-								colorbuffer[0] = pixelData[1] = Serial1.read();
-								colorbuffer[1] = pixelData[0] = Serial1.read();
+								colorbuffer[0] = pixelData[0] = Serial1.read();
+								colorbuffer[1] = pixelData[1] = Serial1.read();
 								colorbuffer[2] = pixelData[2] = Serial1.read();
 								
 								spi_transfer(WRITE_REG(RGB_LED_COLOR), colorbuffer, NULL, 3);
