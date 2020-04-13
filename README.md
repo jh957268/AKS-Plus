@@ -18,6 +18,3 @@ https://github.com/RatPacDimmers/AKS-Plus.git
 
 * [Atmel Studio 7](https://www.microchip.com/avr-support/atmel-studio-7) -  Integrated Development Platform (IDP)
 
-## Authors
-
-* **Matthew Santoro** - *Main Developer* - [Santoroma17](https://github.com/Santoroma17)
